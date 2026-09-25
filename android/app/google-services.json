@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1087456931772",
+    "project_id": "reservation-chat-univercity",
+    "storage_bucket": "reservation-chat-univercity.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1087456931772:android:2c1ea726d36cb285a945b9",
+        "android_client_info": {
+          "package_name": "com.example.reservationChatUnivercityProject"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDpzxAYisK30O24DIPDekLg2XN95q-icx8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
