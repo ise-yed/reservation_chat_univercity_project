@@ -1,10 +1,12 @@
 import 'package:device_preview/device_preview.dart';
 import 'package:easy_localization/easy_localization.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:reservation_chat_univercity_project/core/notifications/firebase_web_options.dart';
 
 import 'package:reservation_chat_univercity_project/features/onboarding/bloc/onboarding_bloc.dart';
 import 'package:reservation_chat_univercity_project/features/onboarding/services/onboarding_service.dart';
@@ -18,8 +20,6 @@ import 'features/auth/bloc/auth_bloc.dart';
 import 'features/auth/service/auth_service.dart';
 import 'features/blog/bloc/blog_bloc.dart';
 import 'features/blog/service/blog_service.dart';
-
-import 'features/home/bloc/home_bloc.dart';
 
 import 'features/profile/bloc/profile_bloc.dart';
 import 'features/profile/service/profile_service.dart';
@@ -35,11 +35,20 @@ Future<void> bootstrap() async {
   await VoicePlayerManager.instance.init();
   await ZarinpalCallbackHandler.instance.init();
   final Locale initialLocale = await determineInitialLocale();
-  // ! map cache
+  bool isFirebaseInitialized = false;
   try {
-    await messagingService.initialize();
-  } catch (e) {
-    debugPrint('Firebase messaging initialization failed: $e');
+    if (Firebase.apps.isEmpty) {
+      if (kIsWeb) {
+        await Firebase.initializeApp(options: firebaseWebOptions);
+      } else {
+        await Firebase.initializeApp();
+      }
+    }
+    isFirebaseInitialized = Firebase.apps.isNotEmpty;
+  } catch (e, stackTrace) {
+    // چاپ کردن دلیل اصلی خطای فایربیس در کنسول
+    debugPrint('🔥 Firebase initialization failed: $e');
+    debugPrintStack(stackTrace: stackTrace);
   }
 
   await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
@@ -86,4 +95,12 @@ Future<void> bootstrap() async {
       ),
     ),
   );
+
+  if (isFirebaseInitialized) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      MessagingService.instance.initialize();
+    });
+  } else {
+    debugPrint('⚠️ فایربیس راه‌اندازی نشد؛ سرویس نوتیفیکیشن غیرفعال ماند.');
+  }
 }

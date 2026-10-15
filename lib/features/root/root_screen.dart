@@ -1,14 +1,17 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:reservation_chat_univercity_project/features/blog/home_blogs_screen.dart';
+import 'package:reservation_chat_univercity_project/core/constants/app_setting.dart';
+import 'package:reservation_chat_univercity_project/features/home/home.dart';
+import 'package:reservation_chat_univercity_project/features/profile/screens/profile_screen.dart';
+import 'package:reservation_chat_univercity_project/features/root/placeholder_screens.dart';
 
 import 'dart:ui' as ui;
 
-import 'package:reservation_chat_univercity_project/features/home/home.dart';
+// Role constants — match Django UserRoles choices.
+const _kRoleProvider = 'provider';
 
 class RootScreen extends StatefulWidget {
   const RootScreen({super.key});
@@ -20,27 +23,51 @@ class RootScreen extends StatefulWidget {
 ValueNotifier<int> currentIndex = ValueNotifier(0);
 
 class _RootScreenState extends State<RootScreen> {
-  final List<Widget> _screens = const [
-    HomeScreen(),
-
-    HomeBlogsScreen(),
-    // MessagingHomeScreen(),
-  ];
-
-  final List<_NavItem> _items = const [
-    _NavItem(label: 'home', icon: 'home'),
-    _NavItem(label: 'adopt', icon: 'health_care'),
-    _NavItem(label: 'store', icon: 'store_fill'),
-    _NavItem(label: 'articles', icon: 'book'),
-    _NavItem(label: 'messages', icon: 'chat', hasBadge: true),
-  ];
-
-  Future<bool> _onWillPop() async {
-    if (currentIndex.value != 0) {
-      currentIndex.value = 0;
-      return false;
+  static List<Widget> _screensFor(String role) {
+    if (role == _kRoleProvider) {
+      return const [
+        ProviderDashboardScreen(),
+        ChatsScreen(),
+        MyServicesScreen(),
+        ProfileScreen(),
+      ];
     }
-    return true;
+    return const [
+      HomeScreen(),
+      MyAppointmentsScreen(),
+      ChatsScreen(),
+      ProfileScreen(),
+    ];
+  }
+
+  static List<_NavItem> _itemsFor(String role) {
+    if (role == _kRoleProvider) {
+      return const [
+        _NavItem(label: 'nav.dashboard',   icon: 'stethoscope'),
+        _NavItem(label: 'nav.inbox',       icon: 'chat',            hasBadge: true),
+        _NavItem(label: 'nav.my_services', icon: 'medical_service'),
+        _NavItem(label: 'nav.profile',     icon: 'user-circle'),
+      ];
+    }
+    return const [
+      _NavItem(label: 'nav.home',         icon: 'home'),
+      _NavItem(label: 'nav.appointments', icon: 'calendar'),
+      _NavItem(label: 'nav.chats',        icon: 'chat',  hasBadge: true),
+      _NavItem(label: 'nav.profile',      icon: 'user-circle'),
+    ];
+  }
+
+  late String _role;
+  late List<Widget> _screens;
+  late List<_NavItem> _items;
+
+  @override
+  void initState() {
+    super.initState();
+    _role    = currentUserModel.role ?? '';
+    _screens = _screensFor(_role);
+    _items   = _itemsFor(_role);
+    currentIndex.value = 0;
   }
 
   void _onTap(int i) {
@@ -51,24 +78,27 @@ class _RootScreenState extends State<RootScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
+    final cs    = Theme.of(context).colorScheme;
     final isRtl = Directionality.of(context) == ui.TextDirection.rtl;
-    final navH = 88.h;
+    final navH  = 88.h;
 
-    return WillPopScope(
-      onWillPop: _onWillPop,
+    return PopScope(
+      canPop: currentIndex.value == 0,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && currentIndex.value != 0) {
+          currentIndex.value = 0;
+        }
+      },
       child: Scaffold(
         extendBody: true,
-        body: ValueListenableBuilder(
+        body: ValueListenableBuilder<int>(
           valueListenable: currentIndex,
-          builder: (context, value, child) {
+          builder: (context, value, _) {
             return Stack(
               children: [
-                IndexedStack(index: currentIndex.value, children: _screens),
+                IndexedStack(index: value, children: _screens),
                 Positioned(
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
+                  left: 0, right: 0, bottom: 0,
                   child: SafeArea(
                     top: false,
                     child: Container(
@@ -81,11 +111,10 @@ class _RootScreenState extends State<RootScreen> {
                               ? ui.TextDirection.rtl
                               : ui.TextDirection.ltr,
                           children: List.generate(_items.length, (i) {
-                            final selected = currentIndex.value == i;
                             return _NavButton(
-                              item: _items[i],
-                              selected: selected,
-                              onTap: () => _onTap(i),
+                              item:     _items[i],
+                              selected: value == i,
+                              onTap:    () => _onTap(i),
                             );
                           }),
                         ),
@@ -115,8 +144,8 @@ class _NavButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final primary = cs.primary;
+    final cs       = Theme.of(context).colorScheme;
+    final primary  = cs.primary;
     final inactive = cs.tertiary;
     final iconSize = Size(24.w, 24.h);
 
@@ -125,14 +154,12 @@ class _NavButton extends StatelessWidget {
         clipBehavior: Clip.none,
         children: [
           Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
+            top: 0, left: 0, right: 0,
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 200),
-              curve: Curves.easeOut,
-              height: 2,
-              margin: EdgeInsets.symmetric(horizontal: 6.w),
+              curve:    Curves.easeOut,
+              height:   2,
+              margin:   EdgeInsets.symmetric(horizontal: 6.w),
               decoration: BoxDecoration(
                 color: selected ? primary : Colors.transparent,
               ),
@@ -142,8 +169,8 @@ class _NavButton extends StatelessWidget {
             child: Material(
               color: Colors.transparent,
               child: InkWell(
-                onTap: onTap,
-                splashColor: Colors.transparent,
+                onTap:          onTap,
+                splashColor:    Colors.transparent,
                 highlightColor: Colors.transparent,
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -151,54 +178,14 @@ class _NavButton extends StatelessWidget {
                     SizedBox(
                       height: 30.h,
                       child: Center(
-                        child: Stack(
-                          clipBehavior: Clip.none,
-                          children: [
-                            SvgPicture.asset(
-                              'assets/icons/${item.icon}.svg',
-                              width: iconSize.width,
-                              height: iconSize.height,
-                              colorFilter: ColorFilter.mode(
-                                selected ? primary : inactive,
-                                BlendMode.srcIn,
-                              ),
-                            ),
-                            if (item.hasBadge) SizedBox(height: 10),
-                            // BlocBuilder<ChatBloc, ChatState>(
-                            //   buildWhen: (previous, current) {
-                            //     if (current
-                            //             is GetChatUnseenCountSuccessState ||
-                            //         current
-                            //             is GetChatUnseenCountLoadingState) {
-                            //       return true;
-                            //     }
-
-                            //     return false;
-                            //   },
-                            //   builder: (context, state) {
-                            //     if (state is GetChatUnseenCountSuccessState &&
-                            //         state.unseenCount > 0) {
-                            //       return Positioned(
-                            //         right: -2.w,
-                            //         top: 2.h,
-                            //         child: Container(
-                            //           width: 11.w,
-                            //           height: 11.w,
-                            //           decoration: BoxDecoration(
-                            //             color: cs.primary,
-                            //             shape: BoxShape.circle,
-                            //             border: Border.all(
-                            //               color: cs.shadow,
-                            //               width: 1.5,
-                            //             ),
-                            //           ),
-                            //         ),
-                            //       );
-                            //     }
-                            //     return const SizedBox.shrink();
-                            //   },
-                            // ),
-                          ],
+                        child: SvgPicture.asset(
+                          'assets/icons/${item.icon}.svg',
+                          width:  iconSize.width,
+                          height: iconSize.height,
+                          colorFilter: ColorFilter.mode(
+                            selected ? primary : inactive,
+                            BlendMode.srcIn,
+                          ),
                         ),
                       ),
                     ),

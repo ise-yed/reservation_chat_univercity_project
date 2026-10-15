@@ -14,10 +14,16 @@ import 'package:reservation_chat_univercity_project/features/auth/widgets/otp_pi
 import '../widgets/back_button.dart';
 
 class VerifyCodeScreen extends StatefulWidget {
-  const VerifyCodeScreen({super.key, this.email, required this.isRegister});
+  const VerifyCodeScreen({
+    super.key,
+    this.email,
+    this.isRegister = false,
+    this.isChangePassword = false,
+  });
 
   final String? email;
   final bool isRegister;
+  final bool isChangePassword;
 
   @override
   State<VerifyCodeScreen> createState() => _VerifyCodeScreenState();
@@ -75,7 +81,7 @@ class _VerifyCodeScreenState extends State<VerifyCodeScreen> {
     goScreen(
       context: context,
       screen: ChangePasswordScreen(
-        isReset: !widget.isRegister,
+        isReset: widget.isChangePassword ? false : !widget.isRegister,
         email: widget.email,
         code: code,
       ),

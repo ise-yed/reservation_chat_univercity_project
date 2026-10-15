@@ -490,5 +490,15 @@
     "week_wednesday": "چهارشنبه",
     "week_thursday": "پنجشنبه",
     "week_friday": "جمعه"
+  },
+
+  "nav": {
+    "home": "خانه",
+    "appointments": "نوبت‌ها",
+    "chats": "گفتگوها",
+    "profile": "پروفایل",
+    "dashboard": "داشبورد",
+    "inbox": "صندوق",
+    "my_services": "خدمات من"
   }
 }

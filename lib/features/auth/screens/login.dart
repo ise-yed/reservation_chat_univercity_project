@@ -6,6 +6,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:reservation_chat_univercity_project/core/constants/app_setting.dart';
+import 'package:reservation_chat_univercity_project/core/notifications/messaging_service.dart';
 import 'package:reservation_chat_univercity_project/core/utils/navigator.dart';
 import 'package:reservation_chat_univercity_project/core/widgets/main_button.dart';
 import 'package:reservation_chat_univercity_project/core/widgets/main_textfield.dart';
@@ -215,12 +216,12 @@ class _LoginScreenState extends State<LoginScreen> {
                             listener: (context, state) async {
                               if (state is LoginSuccess) {
                                 currentUserModel = state.user;
-                                // prefs.setBool(AppConstants.isAppStarted, true);
+                                prefs.setBool(AppConstants.isAppStarted, true);
 
-                                // final uid = currentUserModel.id;
-                                // if (uid != null && uid.isNotEmpty) {
-                                // MessagingService.instance.onLogin(uid);
-                                // }
+                                final uid = currentUserModel.id;
+                                if (uid != null && uid.isNotEmpty) {
+                                  MessagingService.instance.onLogin(uid);
+                                }
 
                                 final hasSub = true;
                                 if (hasSub) {
@@ -228,7 +229,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                     context: context,
                                     screen: RootScreen(),
                                   );
-                                } else {}
+                                }
                               }
 
                               if (state is LoginError) {

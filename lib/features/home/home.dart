@@ -28,8 +28,8 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
 
-    context.read<HomeBloc>().add(GetAdsEvent());
-    context.read<HomeBloc>().add(GetPartnersEvent());
+    // context.read<HomeBloc>().add(GetAdsEvent());
+    // context.read<HomeBloc>().add(GetPartnersEvent());
   }
 
   void Function()? bannerFunc;
@@ -77,7 +77,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               ),
                               SizedBox(width: 8.w),
                               Text(
-                                currentUserModel.petName ?? "",
+                                "gg",
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: Theme.of(context).textTheme.titleMedium!

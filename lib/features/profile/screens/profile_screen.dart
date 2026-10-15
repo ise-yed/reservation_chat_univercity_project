@@ -10,7 +10,6 @@ import 'package:reservation_chat_univercity_project/core/widgets/dropdown.dart';
 import 'package:reservation_chat_univercity_project/core/widgets/reminders_appbar_widget.dart';
 import 'package:reservation_chat_univercity_project/features/profile/bloc/profile_bloc.dart';
 import 'package:reservation_chat_univercity_project/features/profile/screens/notification_screen.dart';
-import 'package:reservation_chat_univercity_project/features/profile/screens/support_screen.dart';
 import 'package:reservation_chat_univercity_project/features/profile/screens/update_screen.dart';
 import 'package:reservation_chat_univercity_project/features/profile/widgets/profile_home_item_widget.dart';
 import 'package:flutter/widgets.dart' as ui;
@@ -19,8 +18,14 @@ import '../../../core/constants/app_constants.dart';
 import '../../../core/constants/app_setting.dart';
 import '../../../core/widgets/app_cached_image.dart';
 import '../../auth/screens/change_password.dart';
+import '../../auth/screens/verify_code.dart';
+import '../../auth/bloc/auth_bloc.dart';
 import '../widgets/logout_dialog.dart';
 import 'edit_profile_screen.dart';
+
+import 'package:toastification/toastification.dart';
+
+import '../../../core/utils/snakbar.dart';
 
 import 'package:reservation_chat_univercity_project/core/localization/locale_initializer.dart';
 
@@ -38,7 +43,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     super.initState();
     final bloc = BlocProvider.of<ProfileBloc>(context);
     bloc.add(NotificationDataEvent(page: 1, limit: 2, callSeen: false));
-    bloc.add(GetTicketListEvent());
   }
 
   bool? answeredTicket = false;
@@ -163,7 +167,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     },
                   ),
                   Text(
-                    currentUserModel.petName ?? '',
+                    currentUserModel.fullName ?? '',
                     style: Theme.of(context).textTheme.titleMedium!.copyWith(),
                   ),
                   Text(
@@ -222,16 +226,42 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             ),
                           ),
                           SizedBox(height: 8.h),
-                          ProfileHomeItem(
-                            iconPath: "assets/icons/lock.svg",
-                            title: "change_password".tr(),
-                            onTap: () {
-                              // goScreen(
-                              //   context: context,
-                              //   screen: ChangePasswordScreen(
-                              //     temporaryToken: false,
-                              //   ),
-                              // );
+                          BlocConsumer<AuthBloc, AuthState>(
+                            listenWhen: (previous, current) {
+                              return current is ChangePasswordRequestSuccess ||
+                                  current is ChangePasswordRequestError;
+                            },
+                            listener: (context, state) {
+                              if (state is ChangePasswordRequestSuccess) {
+                                goScreen(
+                                  context: context,
+                                  screen: VerifyCodeScreen(
+                                    isRegister: false,
+                                    isChangePassword: true,
+                                    email: currentUserModel.email ?? '',
+                                  ),
+                                );
+                              } else if (state is ChangePasswordRequestError) {
+                                showCustomSnackBar(
+                                  context: context,
+                                  title: 'error_title'.tr(),
+                                  content: state.message,
+                                  status: ToastificationType.error,
+                                );
+                              }
+                            },
+                            builder: (context, state) {
+                              return ProfileHomeItem(
+                                iconPath: "assets/icons/lock.svg",
+                                title: "change_password".tr(),
+                                onTap: () {
+                                  if (state is ChangePasswordRequestLoading)
+                                    return;
+                                  context.read<AuthBloc>().add(
+                                    ChangePasswordRequestEvent(),
+                                  );
+                                },
+                              );
                             },
                           ),
                         ],
@@ -375,22 +405,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             },
                           ),
                           BlocListener<ProfileBloc, ProfileState>(
-                            listener: (context, state) {
-                              if (state is GetTicketListSuccessState) {
-                                setState(() {
-                                  answeredTicket = state.tickets!.any(
-                                    (e) => e.status == 'answered',
-                                  );
-                                });
-                              }
-                            },
+                            listener: (context, state) {},
                             child: ProfileHomeItem(
-                              onTap: () {
-                                goScreen(
-                                  context: context,
-                                  screen: SupportScreen(),
-                                );
-                              },
+                              onTap: () {},
                               showRedDot: answeredTicket!,
                               iconPath: "assets/icons/headphones.svg",
                               title: "support".tr(),

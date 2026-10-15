@@ -3,48 +3,21 @@ import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:http_parser/http_parser.dart';
 import 'package:reservation_chat_univercity_project/features/profile/model/notification_model.dart';
-import 'package:reservation_chat_univercity_project/features/profile/model/ticket_data_model.dart';
-import 'package:reservation_chat_univercity_project/features/profile/model/ticket_list_model.dart';
 
 import '../../../core/constants/app_setting.dart';
 import '../../../core/utils/api_provider.dart';
 import '../../../core/utils/app_error.dart';
 import '../../auth/models/user_model.dart';
 import '../model/app_const_setting_model.dart';
-import '../model/pet_model.dart';
 
 class ProfileService {
   Future<UserModel> editProfile({required UserModel user}) async {
     try {
-      final response = await apiProvider.patch('user/', data: user.toJson());
+      final response = await apiProvider.patch('auth/me/', data: user.toJson());
       return UserModel.fromJson(response.data);
     } on DioException catch (e) {
       if (e.error is AppException) throw e.error as AppException;
       throw AppException(AppErrorCode.unknown, serverMessage: e.message);
-    }
-  }
-
-  Future<List<PetModel>> getPets() async {
-    try {
-      final response = await apiProvider.get('pet/');
-      return PetModel.listFromJson(response.data);
-    } on DioException catch (e) {
-      if (e.error is AppException) throw e.error as AppException;
-      throw AppException(AppErrorCode.unknown, serverMessage: e.message);
-    } catch (e) {
-      throw AppException(AppErrorCode.unknown, serverMessage: e.toString());
-    }
-  }
-
-  Future<List<PetModel>> getBreeds(String petId) async {
-    try {
-      final response = await apiProvider.get('pet/$petId');
-      return PetModel.listFromJson(response.data);
-    } on DioException catch (e) {
-      if (e.error is AppException) throw e.error as AppException;
-      throw AppException(AppErrorCode.unknown, serverMessage: e.message);
-    } catch (e) {
-      throw AppException(AppErrorCode.unknown, serverMessage: e.toString());
     }
   }
 
@@ -86,7 +59,7 @@ class ProfileService {
 
   Future<UserModel> getCurrentUser() async {
     try {
-      final response = await apiProvider.get('user/');
+      final response = await apiProvider.get('auth/me/');
       return UserModel.fromJson(response.data);
     } on DioException catch (e) {
       if (e.error is AppException) {
@@ -108,11 +81,15 @@ class ProfileService {
 
   Future<void> updateFirebaseToken({
     required String? firebaseToken,
+    String? deviceType,
   }) async {
     try {
       await apiProvider.post(
         'notifications/devices/register/',
-        data: {'registration_id': firebaseToken},
+        data: {
+          'registration_id': firebaseToken,
+          if (deviceType != null) 'device_type': deviceType,
+        },
       );
     } on DioException catch (e) {
       if (e.error is AppException) throw e.error as AppException;
@@ -124,90 +101,6 @@ class ProfileService {
     try {
       final response = await apiProvider.get('setting/text-plains');
       return AppConstSettingModel.fromJson(response.data);
-    } on DioException catch (e) {
-      if (e.error is AppException) throw e.error as AppException;
-      throw AppException(AppErrorCode.unknown, serverMessage: e.message);
-    } catch (e) {
-      throw AppException(AppErrorCode.unknown, serverMessage: e.toString());
-    }
-  }
-
-  Future<List<TicketListModel>> getTickets() async {
-    try {
-      final response = await apiProvider.get('ticket/');
-      return ticketListModelFromJson(response.data);
-    } on DioException catch (e) {
-      if (e.error is AppException) throw e.error as AppException;
-      throw AppException(AppErrorCode.unknown, serverMessage: e.message);
-    } catch (e) {
-      throw AppException(AppErrorCode.unknown, serverMessage: e.toString());
-    }
-  }
-
-  Future<TicketListModel> createTicket({
-    required String subject,
-    required String description,
-    required String message,
-  }) async {
-    try {
-      final response = await apiProvider.post(
-        'ticket/',
-        data: {
-          "subject": subject,
-          "description": description,
-          "message": message,
-        },
-      );
-
-      return TicketListModel.fromJson(response.data);
-    } on DioException catch (e) {
-      if (e.error is AppException) throw e.error as AppException;
-      throw AppException(AppErrorCode.unknown, serverMessage: e.message);
-    } catch (e) {
-      throw AppException(AppErrorCode.unknown, serverMessage: e.toString());
-    }
-  }
-
-  // !must chekck
-  // todo:
-  Future<TicketListModel> closeTicket({required String id}) async {
-    try {
-      final response = await apiProvider.delete('ticket/$id');
-
-      return TicketListModel.fromJson(response.data);
-    } on DioException catch (e) {
-      if (e.error is AppException) throw e.error as AppException;
-      throw AppException(AppErrorCode.unknown, serverMessage: e.message);
-    } catch (e) {
-      throw AppException(AppErrorCode.unknown, serverMessage: e.toString());
-    }
-  }
-
-  Future<SingleTicketModel> getMessageTicket({required String id}) async {
-    try {
-      final response = await apiProvider.get('ticket/$id');
-
-      return SingleTicketModel.fromJson(response.data);
-    } on DioException catch (e) {
-      if (e.error is AppException) throw e.error as AppException;
-      throw AppException(AppErrorCode.unknown, serverMessage: e.message);
-    } catch (e) {
-      throw AppException(AppErrorCode.unknown, serverMessage: e.toString());
-    }
-  }
-
-  Future<TicketMessageData> replayTicket({
-    String? message,
-    String? document,
-    required String id,
-  }) async {
-    try {
-      final response = await apiProvider.post(
-        'ticket/$id',
-        data: {"message": message ?? "", "document": document ?? ""},
-      );
-
-      return TicketMessageData.fromJson(response.data);
     } on DioException catch (e) {
       if (e.error is AppException) throw e.error as AppException;
       throw AppException(AppErrorCode.unknown, serverMessage: e.message);

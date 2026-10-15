@@ -302,7 +302,13 @@ class MessagingService {
     try {
       final token = await _fcm.getToken();
       if (token == null || token.isEmpty) return;
-      await ProfileService().updateFirebaseToken(firebaseToken: token);
+      final deviceType = kIsWeb
+          ? 'web'
+          : (defaultTargetPlatform == TargetPlatform.iOS ? 'ios' : 'android');
+      await ProfileService().updateFirebaseToken(
+        firebaseToken: token,
+        deviceType: deviceType,
+      );
     } catch (_) {}
   }
 
@@ -311,12 +317,15 @@ class MessagingService {
   }
 
   void onLogin(String userId) {
+    _lastSentToken = null;
     ensureBaseSubscriptions();
     _trySubscribe(userTopic(userId));
+    unawaited(syncTokenToServer(promptOnWeb: kIsWeb, force: true));
   }
 
   void onLogout(String userId) {
     _tryUnsubscribe(userTopic(userId));
+    _lastSentToken = null;
   }
 
   void _trySubscribe(String topic) {
@@ -365,7 +374,10 @@ class MessagingService {
     Timer(Duration(seconds: 2 * next), () => _trySubscribe(topic));
   }
 
-  Future<void> syncTokenToServer({bool promptOnWeb = false}) async {
+  Future<void> syncTokenToServer({
+    bool promptOnWeb = false,
+    bool force = false,
+  }) async {
     try {
       String? token;
 
@@ -383,9 +395,16 @@ class MessagingService {
 
       if (token == null || token.isEmpty) return;
 
-      if (_lastSentToken == token) return;
+      if (!force && _lastSentToken == token) return;
 
-      await ProfileService().updateFirebaseToken(firebaseToken: token);
+      final deviceType = kIsWeb
+          ? 'web'
+          : (defaultTargetPlatform == TargetPlatform.iOS ? 'ios' : 'android');
+
+      await ProfileService().updateFirebaseToken(
+        firebaseToken: token,
+        deviceType: deviceType,
+      );
 
       _lastSentToken = token;
       _sendRetry = 0;

@@ -10,6 +10,7 @@ import 'package:flutter_svg/svg.dart';
 import 'package:reservation_chat_univercity_project/core/constants/app_constants.dart';
 import 'package:reservation_chat_univercity_project/core/constants/app_setting.dart';
 import 'package:reservation_chat_univercity_project/core/themes/app_colors.dart';
+import 'package:reservation_chat_univercity_project/core/notifications/messaging_service.dart';
 import 'package:reservation_chat_univercity_project/core/utils/navigator.dart';
 import 'package:reservation_chat_univercity_project/core/utils/network_connection.dart';
 import 'package:reservation_chat_univercity_project/features/auth/screens/login.dart';
@@ -203,7 +204,7 @@ class _SplashScreenState extends State<SplashScreen> {
 
               final id = currentUserModel.id;
               if (id != null && id.isNotEmpty) {
-                // MessagingService.instance.onLogin(id);
+                MessagingService.instance.onLogin(id);
               }
 
               _userReady = true;

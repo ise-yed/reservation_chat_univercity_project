@@ -545,6 +545,16 @@
     "week_wednesday": "Wednesday",
     "week_thursday": "Thursday",
     "week_friday": "Friday"
+  },
+
+  "nav": {
+    "home": "Home",
+    "appointments": "Appointments",
+    "chats": "Chats",
+    "profile": "Profile",
+    "dashboard": "Dashboard",
+    "inbox": "Inbox",
+    "my_services": "My Services"
   }
 }
 
