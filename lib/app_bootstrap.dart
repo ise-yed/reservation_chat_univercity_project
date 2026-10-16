@@ -8,8 +8,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:reservation_chat_univercity_project/core/notifications/firebase_web_options.dart';
 
-import 'package:reservation_chat_univercity_project/features/onboarding/bloc/onboarding_bloc.dart';
-import 'package:reservation_chat_univercity_project/features/onboarding/services/onboarding_service.dart';
 
 import 'core/constants/app_setting.dart';
 import 'core/localization/locale_initializer.dart';
@@ -74,9 +72,6 @@ Future<void> bootstrap() async {
 
           BlocProvider<ProfileBloc>(
             create: (context) => ProfileBloc(ProfileService()),
-          ),
-          BlocProvider<OnboardingBloc>(
-            create: (context) => OnboardingBloc(OnboardingService()),
           ),
         ],
         child: ScreenUtilInit(

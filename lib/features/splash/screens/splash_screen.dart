@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/cupertino.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -12,7 +11,6 @@ import 'package:reservation_chat_univercity_project/core/constants/app_setting.d
 import 'package:reservation_chat_univercity_project/core/themes/app_colors.dart';
 import 'package:reservation_chat_univercity_project/core/notifications/messaging_service.dart';
 import 'package:reservation_chat_univercity_project/core/utils/navigator.dart';
-import 'package:reservation_chat_univercity_project/core/utils/network_connection.dart';
 import 'package:reservation_chat_univercity_project/features/auth/screens/login.dart';
 import 'package:reservation_chat_univercity_project/features/auth/screens/register_screen.dart';
 import 'package:reservation_chat_univercity_project/features/onboarding/screens/onboarding_screen.dart';
@@ -49,10 +47,17 @@ class _SplashScreenState extends State<SplashScreen> {
     await Future.delayed(const Duration(seconds: 2));
     if (!mounted) return;
     final token = prefs.getString(AppConstants.userToken);
+    final seenOnboarding = prefs.getBool(AppConstants.isOnboardingSeen) == true;
     if (token != null && token.isNotEmpty) {
       goScreen(
         context: context,
         screen: const RootScreen(),
+        closeAllScreen: true,
+      );
+    } else if (!seenOnboarding) {
+      goScreen(
+        context: context,
+        screen: const OnboardingsScreen(),
         closeAllScreen: true,
       );
     } else {

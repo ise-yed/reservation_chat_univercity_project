@@ -1,6 +1,5 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:reservation_chat_univercity_project/core/constants/app_constants.dart';
 import 'package:reservation_chat_univercity_project/core/constants/app_setting.dart';
@@ -101,14 +100,10 @@ class _CustomSlideButtonState extends State<CustomSlideButton> {
                       borderRadius: BorderRadius.circular(500),
                     ),
                     child: Center(
-                      child: SvgPicture.asset(
-                        "assets/icons/paw.svg",
-                        width: 24,
-                        height: 24,
-                        colorFilter: ColorFilter.mode(
-                          Colors.white,
-                          BlendMode.srcIn,
-                        ),
+                      child: Icon(
+                        Icons.chevron_left_rounded,
+                        color: Colors.white,
+                        size: 32.sp,
                       ),
                     ),
                   ),
