@@ -13,12 +13,10 @@ import 'network_connection.dart';
 const _publicAuthPaths = [
   'auth/login/',
   'auth/register/',
-  'auth/token/refresh/',
+  'auth/refresh/',
   'auth/password/reset/',
   'auth/password/reset/request-otp/',
   'auth/password/reset/confirm/',
-  'auth/password/change/request-otp/',
-  'auth/password/change/confirm/',
 ];
 
 bool isPublicAuthPath(String path) =>
@@ -390,7 +388,7 @@ class TokenRefreshInterceptor extends Interceptor {
   Future<String?> _doRefresh(String refreshToken) async {
     try {
       final response = await _refreshDio.post(
-        'auth/token/refresh/',
+        'auth/refresh/',
         data: {'refresh': refreshToken},
       );
       if (response.statusCode == 200) {

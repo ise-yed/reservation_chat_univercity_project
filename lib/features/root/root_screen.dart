@@ -7,6 +7,7 @@ import 'package:reservation_chat_univercity_project/core/constants/app_setting.d
 import 'package:reservation_chat_univercity_project/features/home/home.dart';
 import 'package:reservation_chat_univercity_project/features/profile/screens/profile_screen.dart';
 import 'package:reservation_chat_univercity_project/features/root/placeholder_screens.dart';
+import 'package:reservation_chat_univercity_project/features/appointments/screens/appointments_screen.dart';
 
 import 'dart:ui' as ui;
 
@@ -26,7 +27,7 @@ class _RootScreenState extends State<RootScreen> {
   static List<Widget> _screensFor(String role) {
     if (role == _kRoleProvider) {
       return const [
-        ProviderDashboardScreen(),
+        AppointmentsScreen(),
         ChatsScreen(),
         MyServicesScreen(),
         ProfileScreen(),
@@ -34,7 +35,7 @@ class _RootScreenState extends State<RootScreen> {
     }
     return const [
       HomeScreen(),
-      MyAppointmentsScreen(),
+      AppointmentsScreen(),
       ChatsScreen(),
       ProfileScreen(),
     ];
@@ -43,17 +44,17 @@ class _RootScreenState extends State<RootScreen> {
   static List<_NavItem> _itemsFor(String role) {
     if (role == _kRoleProvider) {
       return const [
-        _NavItem(label: 'nav.dashboard',   icon: 'stethoscope'),
-        _NavItem(label: 'nav.inbox',       icon: 'chat',            hasBadge: true),
+        _NavItem(label: 'nav.dashboard', icon: 'stethoscope'),
+        _NavItem(label: 'nav.inbox', icon: 'chat', hasBadge: true),
         _NavItem(label: 'nav.my_services', icon: 'medical_service'),
-        _NavItem(label: 'nav.profile',     icon: 'user-circle'),
+        _NavItem(label: 'nav.profile', icon: 'user-circle'),
       ];
     }
     return const [
-      _NavItem(label: 'nav.home',         icon: 'home'),
+      _NavItem(label: 'nav.home', icon: 'home'),
       _NavItem(label: 'nav.appointments', icon: 'calendar'),
-      _NavItem(label: 'nav.chats',        icon: 'chat',  hasBadge: true),
-      _NavItem(label: 'nav.profile',      icon: 'user-circle'),
+      _NavItem(label: 'nav.chats', icon: 'chat', hasBadge: true),
+      _NavItem(label: 'nav.profile', icon: 'user-circle'),
     ];
   }
 
@@ -64,9 +65,9 @@ class _RootScreenState extends State<RootScreen> {
   @override
   void initState() {
     super.initState();
-    _role    = currentUserModel.role ?? '';
+    _role = currentUserModel.role ?? '';
     _screens = _screensFor(_role);
-    _items   = _itemsFor(_role);
+    _items = _itemsFor(_role);
     currentIndex.value = 0;
   }
 
@@ -78,9 +79,9 @@ class _RootScreenState extends State<RootScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final cs    = Theme.of(context).colorScheme;
+    final cs = Theme.of(context).colorScheme;
     final isRtl = Directionality.of(context) == ui.TextDirection.rtl;
-    final navH  = 88.h;
+    final navH = 88.h;
 
     return PopScope(
       canPop: currentIndex.value == 0,
@@ -98,7 +99,9 @@ class _RootScreenState extends State<RootScreen> {
               children: [
                 IndexedStack(index: value, children: _screens),
                 Positioned(
-                  left: 0, right: 0, bottom: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
                   child: SafeArea(
                     top: false,
                     child: Container(
@@ -112,9 +115,9 @@ class _RootScreenState extends State<RootScreen> {
                               : ui.TextDirection.ltr,
                           children: List.generate(_items.length, (i) {
                             return _NavButton(
-                              item:     _items[i],
+                              item: _items[i],
                               selected: value == i,
-                              onTap:    () => _onTap(i),
+                              onTap: () => _onTap(i),
                             );
                           }),
                         ),
@@ -144,8 +147,8 @@ class _NavButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs       = Theme.of(context).colorScheme;
-    final primary  = cs.primary;
+    final cs = Theme.of(context).colorScheme;
+    final primary = cs.primary;
     final inactive = cs.tertiary;
     final iconSize = Size(24.w, 24.h);
 
@@ -154,12 +157,14 @@ class _NavButton extends StatelessWidget {
         clipBehavior: Clip.none,
         children: [
           Positioned(
-            top: 0, left: 0, right: 0,
+            top: 0,
+            left: 0,
+            right: 0,
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 200),
-              curve:    Curves.easeOut,
-              height:   2,
-              margin:   EdgeInsets.symmetric(horizontal: 6.w),
+              curve: Curves.easeOut,
+              height: 2,
+              margin: EdgeInsets.symmetric(horizontal: 6.w),
               decoration: BoxDecoration(
                 color: selected ? primary : Colors.transparent,
               ),
@@ -169,8 +174,8 @@ class _NavButton extends StatelessWidget {
             child: Material(
               color: Colors.transparent,
               child: InkWell(
-                onTap:          onTap,
-                splashColor:    Colors.transparent,
+                onTap: onTap,
+                splashColor: Colors.transparent,
                 highlightColor: Colors.transparent,
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -180,7 +185,7 @@ class _NavButton extends StatelessWidget {
                       child: Center(
                         child: SvgPicture.asset(
                           'assets/icons/${item.icon}.svg',
-                          width:  iconSize.width,
+                          width: iconSize.width,
                           height: iconSize.height,
                           colorFilter: ColorFilter.mode(
                             selected ? primary : inactive,

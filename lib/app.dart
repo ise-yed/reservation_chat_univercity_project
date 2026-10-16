@@ -4,6 +4,8 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:reservation_chat_univercity_project/features/home/home.dart';
+import 'package:reservation_chat_univercity_project/features/root/root_screen.dart';
 import 'package:reservation_chat_univercity_project/features/splash/screens/splash_screen.dart';
 
 import 'core/constants/app_setting.dart';
@@ -153,7 +155,7 @@ class MyApp extends StatelessWidget {
               ),
             );
           },
-          home: SplashScreen(),
+          home: const SplashScreen(),
         );
       },
     );

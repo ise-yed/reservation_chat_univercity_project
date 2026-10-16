@@ -10,6 +10,7 @@ import '../../auth/models/user_model.dart';
 
 import 'package:reservation_chat_univercity_project/core/widgets/reminders_appbar_widget.dart';
 
+import '../../auth/service/auth_service.dart';
 import '../../splash/screens/splash_screen.dart';
 
 class LogoutDialog extends StatelessWidget {
@@ -77,14 +78,16 @@ class LogoutDialog extends StatelessWidget {
                       ),
                   buttonColor: Theme.of(context).colorScheme.tertiaryFixedDim,
                   onTap: () async {
-                    final uid = currentUserModel.id;
+                    try {
+                      await AuthServices().logout();
+                    } catch (_) {}
                     await prefs.clear();
                     isLogin.value = false;
                     currentUserModel = UserModel();
-                    if (uid != null && uid.isNotEmpty) {}
+                    if (!context.mounted) return;
                     goScreen(
                       context: context,
-                      screen: SplashScreen(),
+                      screen: const SplashScreen(),
                       closeAllScreen: true,
                     );
                   },

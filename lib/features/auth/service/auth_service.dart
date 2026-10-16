@@ -141,10 +141,8 @@ class AuthServices {
   
   Future<String> changePasswordRequest() async {
     try {
-      final currentToken = prefs.getString(AppConstants.userToken) ?? '';
       final response = await apiProvider.post(
         'auth/password/change/request-otp/',
-        options: Options(headers: {'Authorization': 'Bearer $currentToken'}),
       );
 
       final raw = response.data?['message'];
@@ -165,7 +163,6 @@ class AuthServices {
     required String newPasswordConfirm,
   }) async {
     try {
-      final currentToken = prefs.getString(AppConstants.userToken) ?? '';
       final response = await apiProvider.post(
         'auth/password/change/confirm/',
         data: {
@@ -174,7 +171,6 @@ class AuthServices {
           'new_password': newPassword,
           'new_password_confirm': newPasswordConfirm,
         },
-        options: Options(headers: {'Authorization': 'Bearer $currentToken'}),
       );
 
       final raw = response.data?['message'];

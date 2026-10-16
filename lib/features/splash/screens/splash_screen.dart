@@ -48,11 +48,20 @@ class _SplashScreenState extends State<SplashScreen> {
   Future<void> _startFlow() async {
     await Future.delayed(const Duration(seconds: 2));
     if (!mounted) return;
-    goScreen(
-      context: context,
-      screen: const LoginScreen(),
-      closeAllScreen: true,
-    );
+    final token = prefs.getString(AppConstants.userToken);
+    if (token != null && token.isNotEmpty) {
+      goScreen(
+        context: context,
+        screen: const RootScreen(),
+        closeAllScreen: true,
+      );
+    } else {
+      goScreen(
+        context: context,
+        screen: const LoginScreen(),
+        closeAllScreen: true,
+      );
+    }
   }
 
   Future<void> _ensureMinSplash() async {
