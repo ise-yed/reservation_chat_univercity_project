@@ -111,13 +111,58 @@ class ProfileService {
 
   Future<NotificationModel> getNotificationData({int? page, int? limit}) async {
     try {
+      final p = page ?? 1;
+      final l = limit ?? 20;
       final response = await apiProvider.get(
-        'notification',
-
-        queryParameters: {'page': page, 'limit': limit},
+        'notifications/',
+        queryParameters: {
+          'page': p,
+          'page_size': l,
+        },
       );
 
-      return NotificationModel.fromJson(response.data);
+      return NotificationModel.fromJson(
+        response.data,
+        currentPage: p,
+        limit: l,
+      );
+    } on DioException catch (e) {
+      if (e.error is AppException) throw e.error as AppException;
+      throw AppException(AppErrorCode.unknown, serverMessage: e.message);
+    } catch (e) {
+      throw AppException(AppErrorCode.unknown, serverMessage: e.toString());
+    }
+  }
+
+  Future<NotificationDoc> getNotificationDetail(String id) async {
+    try {
+      final response = await apiProvider.get('notifications/$id/');
+      return NotificationDoc.fromJson(response.data);
+    } on DioException catch (e) {
+      if (e.error is AppException) throw e.error as AppException;
+      throw AppException(AppErrorCode.unknown, serverMessage: e.message);
+    } catch (e) {
+      throw AppException(AppErrorCode.unknown, serverMessage: e.toString());
+    }
+  }
+
+  Future<NotificationDoc> markNotificationAsRead(String id) async {
+    try {
+      final response = await apiProvider.post('notifications/$id/mark-read/');
+      return NotificationDoc.fromJson(response.data);
+    } on DioException catch (e) {
+      if (e.error is AppException) throw e.error as AppException;
+      throw AppException(AppErrorCode.unknown, serverMessage: e.message);
+    } catch (e) {
+      throw AppException(AppErrorCode.unknown, serverMessage: e.toString());
+    }
+  }
+
+  Future<int> markAllNotificationsAsRead() async {
+    try {
+      final response = await apiProvider.post('notifications/mark-all-read/');
+      final count = (response.data['marked_as_read'] as num?)?.toInt() ?? 0;
+      return count;
     } on DioException catch (e) {
       if (e.error is AppException) throw e.error as AppException;
       throw AppException(AppErrorCode.unknown, serverMessage: e.message);
@@ -127,14 +172,7 @@ class ProfileService {
   }
 
   Future<dynamic> seenNotification() async {
-    try {
-      var data = await apiProvider.patch('notification');
-      return data.data;
-    } on DioException catch (e) {
-      if (e.error is AppException) throw e.error as AppException;
-      throw AppException(AppErrorCode.unknown, serverMessage: e.message);
-    } catch (e) {
-      throw AppException(AppErrorCode.unknown, serverMessage: e.toString());
-    }
+    return markAllNotificationsAsRead();
   }
 }
+

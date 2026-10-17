@@ -92,6 +92,47 @@ class AuthServices {
     }
   }
 
+  /// Tries to refresh the access token silently at app startup.
+  /// Returns [true] if a new access token was obtained and saved.
+  /// Returns [false] if the refresh token is missing or expired.
+  /// On success, [prefs] is updated with the new access token.
+  Future<bool> refreshTokenOnStartup() async {
+    final refreshToken = prefs.getString(AppConstants.userRefreshToken);
+    if (refreshToken == null || refreshToken.isEmpty) {
+      return false;
+    }
+    try {
+      // Use a plain Dio (no interceptors) to avoid loops.
+      final dio = Dio(
+        BaseOptions(
+          baseUrl: AppConstants.appBaseUrl,
+          connectTimeout: const Duration(seconds: 10),
+          receiveTimeout: const Duration(seconds: 10),
+          validateStatus: (_) => true,
+        ),
+      );
+      final response = await dio.post(
+        'auth/token/refresh/',
+        data: {'refresh': refreshToken},
+        options: Options(contentType: 'application/json'),
+      );
+      if (response.statusCode == 200) {
+        final newAccess = response.data?['access']?.toString();
+        if (newAccess != null && newAccess.isNotEmpty) {
+          await prefs.setString(AppConstants.userToken, newAccess);
+          return true;
+        }
+      }
+      // Refresh token is invalid/expired — clear credentials.
+      await prefs.remove(AppConstants.userToken);
+      await prefs.remove(AppConstants.userRefreshToken);
+      return false;
+    } catch (_) {
+      // Network error — keep credentials; user may be offline.
+      return false;
+    }
+  }
+
   Future<String> forgetPasswordRequest({required String email}) async {
     try {
       final response = await apiProvider.post(

@@ -7,7 +7,7 @@ import 'package:reservation_chat_univercity_project/core/utils/navigator.dart';
 import 'package:reservation_chat_univercity_project/core/widgets/main_button.dart';
 import 'package:reservation_chat_univercity_project/core/widgets/main_textfield.dart';
 import 'package:reservation_chat_univercity_project/features/auth/bloc/auth_bloc.dart';
-import 'package:reservation_chat_univercity_project/features/auth/screens/verify_code.dart';
+import 'package:reservation_chat_univercity_project/features/auth/screens/change_password.dart';
 import 'package:toastification/toastification.dart';
 
 import '../../../core/utils/snakbar.dart';
@@ -87,10 +87,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                       );
                       goScreen(
                         context: context,
-                        screen: VerifyCodeScreen(
-                          email: _emailController.text,
-                          // code: state.code.toString(),
-                          isRegister: false,
+                        screen: ChangePasswordScreen(
+                          email: _emailController.text.trim(),
+                          isReset: true,
                         ),
                       );
                     }

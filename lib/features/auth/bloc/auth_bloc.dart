@@ -1,5 +1,4 @@
 import 'package:bloc/bloc.dart';
-import 'package:easy_localization/easy_localization.dart';
 import 'package:meta/meta.dart';
 import '../../../core/utils/app_error.dart';
 import '../models/user_model.dart';
@@ -158,39 +157,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   }
 
   String _errMsg(Object e, {bool includeFieldErrors = true}) {
-    if (e is AppException) {
-      String msg = '';
-      
-      if (e.serverMessage != null && e.serverMessage!.trim().isNotEmpty) {
-        if (e.serverMessage!.trim() == 'username already exists') {
-          msg = 'error.username_already_exists'.tr();
-        } else {
-          msg = e.serverMessage!.trim();
-        }
-      }
-
-      if (includeFieldErrors && e.errors != null && e.errors!.isNotEmpty) {
-        final List<String> fieldErrors = [];
-        e.errors!.forEach((key, value) {
-          if (value is List && value.isNotEmpty) {
-            fieldErrors.add('- $key: ${value.first}');
-          } else if (value is String && value.trim().isNotEmpty) {
-            fieldErrors.add('- $key: $value');
-          }
-        });
-        
-        if (fieldErrors.isNotEmpty) {
-          final errorDetails = fieldErrors.join('\n');
-          msg = msg.isNotEmpty ? '$msg\n$errorDetails' : errorDetails;
-        }
-      }
-      
-      if (msg.isNotEmpty) {
-        return msg;
-      }
-      
-      return e.i18nKey.tr();
-    }
-    return e.toString();
+    return getAppErrorMessage(e, includeFieldErrors: includeFieldErrors);
   }
 }
+

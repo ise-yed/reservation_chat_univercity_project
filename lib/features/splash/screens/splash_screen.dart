@@ -13,6 +13,7 @@ import 'package:reservation_chat_univercity_project/core/notifications/messaging
 import 'package:reservation_chat_univercity_project/core/utils/navigator.dart';
 import 'package:reservation_chat_univercity_project/features/auth/screens/login.dart';
 import 'package:reservation_chat_univercity_project/features/auth/screens/register_screen.dart';
+import 'package:reservation_chat_univercity_project/features/auth/service/auth_service.dart';
 import 'package:reservation_chat_univercity_project/features/onboarding/screens/onboarding_screen.dart';
 import 'package:reservation_chat_univercity_project/features/profile/bloc/profile_bloc.dart';
 import 'package:reservation_chat_univercity_project/features/profile/screens/edit_profile_screen.dart';
@@ -46,26 +47,61 @@ class _SplashScreenState extends State<SplashScreen> {
   Future<void> _startFlow() async {
     await Future.delayed(const Duration(seconds: 2));
     if (!mounted) return;
+
     final token = prefs.getString(AppConstants.userToken);
+    final refreshToken = prefs.getString(AppConstants.userRefreshToken);
     final seenOnboarding = prefs.getBool(AppConstants.isOnboardingSeen) == true;
-    if (token != null && token.isNotEmpty) {
+
+    // No credentials at all → onboarding or login.
+    if ((token == null || token.isEmpty) &&
+        (refreshToken == null || refreshToken.isEmpty)) {
+      if (!seenOnboarding) {
+        goScreen(
+          context: context,
+          screen: const OnboardingsScreen(),
+          closeAllScreen: true,
+        );
+      } else {
+        goScreen(
+          context: context,
+          screen: const LoginScreen(),
+          closeAllScreen: true,
+        );
+      }
+      return;
+    }
+
+    // We have at least a refresh token — try to silently refresh.
+    final authService = AuthServices();
+    final refreshed = await authService.refreshTokenOnStartup();
+
+    if (!mounted) return;
+
+    final stillHasToken = prefs.getString(AppConstants.userToken) != null;
+
+    if (refreshed || stillHasToken) {
+      // Either we got a fresh access token, or we're offline but have an
+      // existing token (per-request interceptor will handle offline errors).
       goScreen(
         context: context,
         screen: const RootScreen(),
         closeAllScreen: true,
       );
-    } else if (!seenOnboarding) {
-      goScreen(
-        context: context,
-        screen: const OnboardingsScreen(),
-        closeAllScreen: true,
-      );
     } else {
-      goScreen(
-        context: context,
-        screen: const LoginScreen(),
-        closeAllScreen: true,
-      );
+      // Refresh token was expired/invalid → force re-login.
+      if (!seenOnboarding) {
+        goScreen(
+          context: context,
+          screen: const OnboardingsScreen(),
+          closeAllScreen: true,
+        );
+      } else {
+        goScreen(
+          context: context,
+          screen: const LoginScreen(),
+          closeAllScreen: true,
+        );
+      }
     }
   }
 

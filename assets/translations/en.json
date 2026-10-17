@@ -226,6 +226,16 @@
   "your_app_is_uptodate": "App is up to date.",
 
   "notifications": "Notifications",
+  "mark_all_read": "Mark all as read",
+  "all_read_success": "All notifications marked as read",
+  "notification_detail": "Notification Details",
+  "unread": "Unread",
+  "read": "Read",
+  "resend_code": "Resend code",
+  "send_code": "Send verification code",
+  "otp_sent": "Verification code sent",
+  "code_hint": "6-digit verification code",
+  "invalid_otp_error": "Invalid verification code",
   "add_ticket": "Add ticket",
 
   "support_subtext_answered": "Answered",

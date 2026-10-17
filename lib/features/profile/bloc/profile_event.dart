@@ -80,12 +80,20 @@ class ReplayTicketDataEvent extends ProfileEvent {
 
 // !Notification data
 class NotificationDataEvent extends ProfileEvent {
-  int? page;
-  int? limit;
-  bool callSeen;
+  final int? page;
+  final int? limit;
+  final bool callSeen;
+
   NotificationDataEvent({this.page, this.limit, this.callSeen = false});
 }
 
-// class SeenNotificationEvent extends ProfileEvent {
-//   SeenNotificationEvent();
-// }
+class MarkNotificationAsReadEvent extends ProfileEvent {
+  final String id;
+
+  MarkNotificationAsReadEvent({required this.id});
+}
+
+class MarkAllNotificationsAsReadEvent extends ProfileEvent {
+  MarkAllNotificationsAsReadEvent();
+}
+

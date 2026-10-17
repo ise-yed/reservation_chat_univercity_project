@@ -1,5 +1,4 @@
 import 'package:bloc/bloc.dart';
-import 'package:easy_localization/easy_localization.dart';
 import 'package:meta/meta.dart';
 import 'package:reservation_chat_univercity_project/core/utils/app_error.dart';
 import 'package:reservation_chat_univercity_project/features/blog/service/blog_service.dart';
@@ -52,10 +51,5 @@ class BlogBloc extends Bloc<BlogEvent, BlogState> {
     }
   }
 
-  String _errMsg(Object e) {
-    if (e is AppException) {
-      return e.i18nKey.tr();
-    }
-    return e.toString();
-  }
+  String _errMsg(Object e) => getAppErrorMessage(e);
 }

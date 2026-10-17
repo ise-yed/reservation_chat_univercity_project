@@ -5,168 +5,218 @@ import 'package:reservation_chat_univercity_project/core/themes/app_colors.dart'
 import 'package:reservation_chat_univercity_project/core/widgets/format_reminder_date.dart';
 import 'package:reservation_chat_univercity_project/features/profile/model/notification_model.dart';
 
-enum NofificationState { success, failed, progress }
-
 class NotificationsItemWidget extends StatelessWidget {
   final bool isActive;
   final NotificationDoc notificationdata;
+  final VoidCallback? onTap;
+
   const NotificationsItemWidget({
     super.key,
-    required this.isActive,
+    this.isActive = true,
     required this.notificationdata,
+    this.onTap,
   });
 
-  Widget setNotifState(String type, BuildContext context) {
+  Widget _buildTypeIcon(String type, BuildContext context) {
+    Color bgColor;
+    String iconPath;
+
     switch (type) {
-      case "reminder":
-        return Container(
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: AppColors.green2,
-          ),
-          height: 55.r,
-          width: 55.r,
+      // Appointments - positive / ongoing
+      case 'appointment_created':
+      case 'appointment_rescheduled':
+      case 'appointment_reminder':
+      case 'reminder':
+        bgColor = const Color(0xFF2563EB); // Royal Blue
+        iconPath = 'assets/icons/calendar.svg';
+        break;
 
-          child: Center(
-            child: SvgPicture.asset(
-              "assets/icons/calling.svg",
-              width: 24.w,
-              height: 24.h,
-              colorFilter: ColorFilter.mode(
-                Theme.of(context).colorScheme.onSurface,
-                BlendMode.srcIn,
-              ),
-            ),
-          ),
-        );
+      case 'appointment_confirmed':
+      case 'appointment_completed':
+        bgColor = const Color(0xFF059669); // Emerald Green
+        iconPath = 'assets/icons/check-circle.svg';
+        break;
 
-      case "message":
-        return Container(
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: AppColors.red,
-          ),
-          height: 55.r,
-          width: 55.r,
+      // Appointments - negative
+      case 'appointment_cancelled':
+      case 'appointment_no_show':
+        bgColor = const Color(0xFFDC2626); // Crimson Red
+        iconPath = 'assets/icons/warning.svg';
+        break;
 
-          child: Center(
-            child: SvgPicture.asset(
-              "assets/icons/description.svg",
-              width: 24.w,
-              height: 24.h,
-              colorFilter: ColorFilter.mode(
-                Theme.of(context).colorScheme.onSurface,
-                BlendMode.srcIn,
-              ),
-            ),
-          ),
-        );
-      case "ticket":
-        return Container(
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: AppColors.yellow,
-          ),
-          height: 55.r,
-          width: 55.r,
+      // Payments
+      case 'payment_success':
+      case 'refund_success':
+        bgColor = const Color(0xFF10B981); // Mint Green
+        iconPath = 'assets/icons/cart.svg';
+        break;
 
-          child: Center(
-            child: SvgPicture.asset(
-              "assets/icons/description.svg",
-              width: 24.w,
-              height: 24.h,
-              colorFilter: ColorFilter.mode(
-                Theme.of(context).colorScheme.onSurface,
-                BlendMode.srcIn,
-              ),
-            ),
-          ),
-        );
-      case "handover":
-        return Container(
-          decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.blue),
-          height: 55.r,
-          width: 55.r,
+      case 'payment_failed':
+        bgColor = const Color(0xFFE11D48); // Rose Red
+        iconPath = 'assets/icons/warning.svg';
+        break;
 
-          child: Center(
-            child: SvgPicture.asset(
-              "assets/icons/heart_fill.svg",
-              width: 24.w,
-              height: 24.h,
-              colorFilter: ColorFilter.mode(
-                Theme.of(context).colorScheme.onSurface,
-                BlendMode.srcIn,
-              ),
-            ),
-          ),
-        );
+      // Chat
+      case 'chat_message_received':
+      case 'message':
+        bgColor = const Color(0xFF7C3AED); // Violet
+        iconPath = 'assets/icons/chat_2.svg';
+        break;
+
+      // Security / Account
+      case 'password_changed':
+      case 'password_reset_requested':
+        bgColor = const Color(0xFFD97706); // Amber
+        iconPath = 'assets/icons/lock.svg';
+        break;
+
+      // Legacy types
+      case 'ticket':
+        bgColor = AppColors.yellow;
+        iconPath = 'assets/icons/description.svg';
+        break;
+
+      case 'handover':
+        bgColor = Colors.blue;
+        iconPath = 'assets/icons/heart_fill.svg';
+        break;
 
       default:
-        return Container(
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: Colors.deepPurpleAccent,
-          ),
-          height: 55.r,
-          width: 55.r,
-
-          child: Center(
-            child: SvgPicture.asset(
-              "assets/icons/StarFour.svg",
-              width: 24.w,
-              height: 24.h,
-              colorFilter: ColorFilter.mode(
-                Theme.of(context).colorScheme.onSurface,
-                BlendMode.srcIn,
-              ),
-            ),
-          ),
-        );
+        bgColor = Theme.of(context).colorScheme.primary;
+        iconPath = 'assets/icons/notification.svg';
+        break;
     }
+
+    return Container(
+      height: 48.r,
+      width: 48.r,
+      decoration: BoxDecoration(
+        color: bgColor.withValues(alpha: 0.12),
+        shape: BoxShape.circle,
+      ),
+      child: Center(
+        child: SvgPicture.asset(
+          iconPath,
+          width: 22.r,
+          height: 22.r,
+          colorFilter: ColorFilter.mode(bgColor, BlendMode.srcIn),
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    final isUnread = !notificationdata.isRead;
+    final dateInfo = formatReminderDateTime(
+      notificationdata.createdAt.toIso8601String(),
+    );
+    final dateStr = dateInfo['date'] ?? '';
+    final timeStr = dateInfo['time'] ?? '';
+    final formattedTime =
+        timeStr.isNotEmpty ? '$dateStr  •  $timeStr' : dateStr;
+
+    final theme = Theme.of(context);
+    final cardBg = isUnread
+        ? theme.colorScheme.primary.withValues(alpha: 0.05)
+        : theme.colorScheme.shadow;
+
+    final border = isUnread
+        ? Border.all(
+            color: theme.colorScheme.primary.withValues(alpha: 0.25),
+            width: 1,
+          )
+        : null;
+
     return Container(
-      margin: EdgeInsets.only(left: 24.w, right: 24.w, bottom: 10.h),
-      // height: 133.h,
-      padding: EdgeInsets.symmetric(vertical: 20.h, horizontal: 16.w),
+      margin: EdgeInsets.only(left: 20.w, right: 20.w, bottom: 12.h),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.shadow,
-        borderRadius: BorderRadius.circular(25.r),
+        color: cardBg,
+        borderRadius: BorderRadius.circular(20.r),
+        border: border,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
-      child: Row(
-        children: [
-          setNotifState(notificationdata.type, context),
-          SizedBox(width: 14.w),
-          Expanded(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(20.r),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(20.r),
+          onTap: onTap,
+          child: Padding(
+            padding: EdgeInsets.symmetric(vertical: 16.h, horizontal: 16.w),
+            child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  notificationdata.title,
-                  style: Theme.of(context).textTheme.titleMedium!.copyWith(),
-                ),
-                SizedBox(height: 12.h),
-                Text(
-                  notificationdata.message,
-                  style: Theme.of(context).textTheme.bodyMedium!
-                      .copyWith(fontSize: 12.75.sp),
-                ),
-                SizedBox(height: 12.h),
-                Text(
-                  formatReminderDateTime(
-                    notificationdata.createdAt.toString(),
-                  )['date']!,
-
-                  style: Theme.of(context).textTheme.bodyMedium!
-                      .copyWith(fontSize: 12.75.sp),
+                _buildTypeIcon(notificationdata.type, context),
+                SizedBox(width: 12.w),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              notificationdata.title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                fontWeight: isUnread
+                                    ? FontWeight.w700
+                                    : FontWeight.w500,
+                                fontSize: 14.5.sp,
+                              ),
+                            ),
+                          ),
+                          if (isUnread) ...[
+                            SizedBox(width: 6.w),
+                            Container(
+                              width: 8.r,
+                              height: 8.r,
+                              decoration: BoxDecoration(
+                                color: theme.colorScheme.primary,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                      SizedBox(height: 6.h),
+                      Text(
+                        notificationdata.message,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          fontSize: 12.sp,
+                          color: isUnread
+                              ? theme.colorScheme.onSurface
+                              : theme.colorScheme.onSurfaceVariant,
+                          height: 1.4,
+                        ),
+                      ),
+                      SizedBox(height: 8.h),
+                      Text(
+                        formattedTime,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          fontSize: 11.sp,
+                          color: theme.colorScheme.onSurfaceVariant.withValues(
+                            alpha: 0.7,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
           ),
-        ],
+        ),
       ),
     );
   }

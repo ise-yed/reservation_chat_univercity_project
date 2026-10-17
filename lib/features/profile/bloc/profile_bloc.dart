@@ -1,9 +1,9 @@
 import 'package:bloc/bloc.dart';
-import 'package:easy_localization/easy_localization.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:meta/meta.dart';
 import 'package:reservation_chat_univercity_project/features/profile/model/notification_model.dart';
 
+import '../../../core/constants/app_setting.dart';
 import '../../../core/utils/app_error.dart';
 import '../../auth/models/user_model.dart';
 import '../model/app_const_setting_model.dart';
@@ -23,7 +23,8 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
     on<UploadFileEvent>(_onUploadFile);
 
     on<NotificationDataEvent>(_onNotificationData);
-    // on<SeenNotificationEvent>(_onSeenNotification);
+    on<MarkNotificationAsReadEvent>(_onMarkNotificationAsRead);
+    on<MarkAllNotificationsAsReadEvent>(_onMarkAllNotificationsAsRead);
   }
 
   /// -------------------- Get Current User --------------------
@@ -34,6 +35,7 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
     emit(GetCurrentUserLoading());
     try {
       final user = await profileServices.getCurrentUser();
+      currentUserModel = user;
       emit(GetCurrentUserSuccess(user));
     } catch (e) {
       emit(GetCurrentUserError(_errMsg(e)));
@@ -48,6 +50,7 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
     emit(EditProfileLoading());
     try {
       final user = await profileServices.editProfile(user: event.user);
+      currentUserModel = user;
       emit(EditProfileSuccess(user));
     } catch (e) {
       emit(EditProfileError(_errMsg(e)));
@@ -88,7 +91,7 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
         page: event.page,
       );
       if (event.callSeen) {
-        var data = await profileServices.seenNotification();
+        await profileServices.seenNotification();
       }
       emit(NotificationDataSuccessState(dataList));
     } catch (e) {
@@ -96,27 +99,30 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
     }
   }
 
-  // Future<void> _onSeenNotification(
-  //   SeenNotificationEvent event,
-  //   Emitter<ProfileState> emit,
-  // ) async {
-  //   emit(SeenNotificationLoadingState());
-  //   try {
-  //     await profileServices.seenNotification();
-
-  //     emit(SeenNotificationSuccessState());
-  //   } catch (e) {
-  //     emit(SeecNotificationFailedState(_errMsg(e)));
-  //   }
-  // }
-
-  String _errMsg(Object e) {
-    if (e is AppException) {
-      // if (e.serverMessage != null && e.serverMessage!.trim().isNotEmpty) {
-      //   return e.serverMessage!.trim();
-      // }
-      return e.i18nKey.tr();
+  Future<void> _onMarkNotificationAsRead(
+    MarkNotificationAsReadEvent event,
+    Emitter<ProfileState> emit,
+  ) async {
+    try {
+      final updated = await profileServices.markNotificationAsRead(event.id);
+      emit(MarkNotificationAsReadSuccessState(notification: updated));
+    } catch (e) {
+      // In case of error marking a single item, we avoid breaking the list UI
     }
-    return e.toString();
   }
+
+  Future<void> _onMarkAllNotificationsAsRead(
+    MarkAllNotificationsAsReadEvent event,
+    Emitter<ProfileState> emit,
+  ) async {
+    try {
+      final count = await profileServices.markAllNotificationsAsRead();
+      emit(MarkAllNotificationsAsReadSuccessState(count: count));
+    } catch (e) {
+      emit(NotificationDataFailedState(_errMsg(e)));
+    }
+  }
+
+
+  String _errMsg(Object e) => getAppErrorMessage(e);
 }

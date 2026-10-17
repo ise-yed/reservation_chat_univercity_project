@@ -86,6 +86,18 @@ class NotificationDataFailedState extends ProfileState {
   NotificationDataFailedState(this.message);
 }
 
+class MarkNotificationAsReadSuccessState extends ProfileState {
+  final NotificationDoc notification;
+
+  MarkNotificationAsReadSuccessState({required this.notification});
+}
+
+class MarkAllNotificationsAsReadSuccessState extends ProfileState {
+  final int count;
+
+  MarkAllNotificationsAsReadSuccessState({required this.count});
+}
+
 class SeenNotificationLoadingState extends ProfileState {}
 
 class SeenNotificationSuccessState extends ProfileState {
@@ -97,3 +109,4 @@ class SeecNotificationFailedState extends ProfileState {
 
   SeecNotificationFailedState(this.message);
 }
+

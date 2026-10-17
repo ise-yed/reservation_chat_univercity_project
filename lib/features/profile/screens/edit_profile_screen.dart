@@ -1,5 +1,6 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:reservation_chat_univercity_project/core/widgets/main_button.dart';
@@ -11,6 +12,7 @@ import '../../../core/constants/app_constants.dart';
 import '../../../core/constants/app_setting.dart';
 import '../../../core/utils/snakbar.dart';
 import '../../auth/models/user_model.dart';
+import '../../auth/widgets/back_button.dart';
 
 class EditProfileScreen extends StatefulWidget {
   const EditProfileScreen({super.key, required this.isEdit, this.initial});
@@ -45,7 +47,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     return Scaffold(
       body: SafeArea(
         child: Padding(
-          padding: EdgeInsets.fromLTRB(24.w, 39.h, 24.w, 8.h),
+          padding: EdgeInsets.fromLTRB(24.w, 24.h, 24.w, 8.h),
           child: MultiBlocListener(
             listeners: [
               BlocListener<ProfileBloc, ProfileState>(
@@ -89,8 +91,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 slivers: [
                   SliverToBoxAdapter(
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        if (widget.isEdit) ...[
+                          AuthBackButton(
+                            onPressed: () => Navigator.pop(context),
+                          ),
+                          SizedBox(height: 16.h),
+                        ],
                         Center(
                           child: Text(
                             widget.isEdit
@@ -119,6 +127,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                           CoreTextField(
                             controller: _firstNameController,
                             hint: "first_name".tr(),
+                            keyboardType: TextInputType.name,
+                            textInputAction: TextInputAction.next,
                             validator: (String? e) =>
                                 (e == null || e.trim().isEmpty)
                                 ? tr('required_field')
@@ -134,6 +144,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                           CoreTextField(
                             controller: _lastNameController,
                             hint: "last_name".tr(),
+                            keyboardType: TextInputType.name,
+                            textInputAction: TextInputAction.next,
                             validator: (String? e) =>
                                 (e == null || e.trim().isEmpty)
                                 ? tr('required_field')
@@ -149,10 +161,22 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                           CoreTextField(
                             controller: _phoneNumberController,
                             hint: "0912xxxxxxx",
-                            validator: (String? e) =>
-                                (e == null || e.trim().isEmpty)
-                                ? tr('required_field')
-                                : null,
+                            keyboardType: TextInputType.phone,
+                            textInputAction: TextInputAction.done,
+                            inputFormatters: [
+                              FilteringTextInputFormatter.digitsOnly,
+                              LengthLimitingTextInputFormatter(11),
+                            ],
+                            validator: (String? e) {
+                              if (e == null || e.trim().isEmpty) {
+                                return tr('required_field');
+                              }
+                              final text = e.trim();
+                              if (text.length != 11 || !text.startsWith('09')) {
+                                return 'شماره موبایل باید ۱۱ رقم و با ۰۹ شروع شود';
+                              }
+                              return null;
+                            },
                           ),
                           SizedBox(height: 24.h),
                           const Spacer(),
@@ -171,9 +195,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                                   onTap: () async {
                                     if (formKey.currentState!.validate()) {
                                       UserModel user = UserModel(
-                                        firstName: _firstNameController.text,
-                                        lastName: _lastNameController.text,
-                                        phoneNumber: _phoneNumberController.text,
+                                        firstName:
+                                            _firstNameController.text.trim(),
+                                        lastName:
+                                            _lastNameController.text.trim(),
+                                        phoneNumber:
+                                            _phoneNumberController.text.trim(),
                                       );
                                       BlocProvider.of<ProfileBloc>(context)
                                           .add(EditProfileEvent(user: user));

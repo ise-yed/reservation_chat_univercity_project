@@ -18,14 +18,10 @@ import '../../../core/constants/app_constants.dart';
 import '../../../core/constants/app_setting.dart';
 import '../../../core/widgets/app_cached_image.dart';
 import '../../auth/screens/change_password.dart';
-import '../../auth/screens/verify_code.dart';
-import '../../auth/bloc/auth_bloc.dart';
+import '../../root/root_screen.dart';
 import '../widgets/logout_dialog.dart';
 import 'edit_profile_screen.dart';
 
-import 'package:toastification/toastification.dart';
-
-import '../../../core/utils/snakbar.dart';
 
 import 'package:reservation_chat_univercity_project/core/localization/locale_initializer.dart';
 
@@ -39,9 +35,9 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   @override
   void initState() {
-    // TODO: implement initState
     super.initState();
     final bloc = BlocProvider.of<ProfileBloc>(context);
+    bloc.add(GetCurrentUserEvent());
     bloc.add(NotificationDataEvent(page: 1, limit: 2, callSeen: false));
   }
 
@@ -71,7 +67,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 title: "user_account".tr(),
                 leadingIcon: GestureDetector(
                   onTap: () {
-                    Navigator.pop(context);
+                    if (Navigator.canPop(context)) {
+                      Navigator.pop(context);
+                    } else {
+                      currentIndex.value = 0;
+                    }
                   },
                   child: RotatedBox(
                     quarterTurns: isRTL ? 0 : 2,
@@ -146,43 +146,96 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                 ),
               ),
-              Column(
-                spacing: 10.h,
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  BlocBuilder<ProfileBloc, ProfileState>(
-                    buildWhen: (previous, current) =>
-                        current is EditProfileSuccess,
-                    builder: (context, state) {
-                      return SizedBox(
+              BlocBuilder<ProfileBloc, ProfileState>(
+                buildWhen: (previous, current) =>
+                    current is EditProfileSuccess ||
+                    current is GetCurrentUserSuccess,
+                builder: (context, state) {
+                  final user = currentUserModel;
+                  final avatarUrl = user.avatar?.trim();
+                  final hasAvatar = avatarUrl != null && avatarUrl.isNotEmpty;
+
+                  Widget defaultAvatar = Container(
+                    width: 82.r,
+                    height: 82.r,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Theme.of(context).colorScheme.primary.withOpacity(0.12),
+                      border: Border.all(
+                        color: Theme.of(context).colorScheme.primary.withOpacity(0.25),
+                        width: 2,
+                      ),
+                    ),
+                    child: Center(
+                      child: SvgPicture.asset(
+                        "assets/icons/user-circle.svg",
+                        width: 44.r,
+                        height: 44.r,
+                        colorFilter: ColorFilter.mode(
+                          Theme.of(context).colorScheme.primary,
+                          BlendMode.srcIn,
+                        ),
+                      ),
+                    ),
+                  );
+
+                  String displayName = '';
+                  if (user.fullName != null && user.fullName!.trim().isNotEmpty) {
+                    displayName = user.fullName!.trim();
+                  } else if (user.firstName != null && user.firstName!.trim().isNotEmpty) {
+                    displayName = '${user.firstName} ${user.lastName ?? ''}'.trim();
+                  } else if (user.email != null && user.email!.trim().isNotEmpty) {
+                    displayName = user.email!.trim();
+                  }
+
+                  String subInfo = '';
+                  if (user.phoneNumber != null && user.phoneNumber!.trim().isNotEmpty) {
+                    subInfo = user.phoneNumber!.trim();
+                  } else if (user.email != null && user.email!.trim().isNotEmpty && displayName != user.email) {
+                    subInfo = user.email!.trim();
+                  }
+
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      SizedBox(
                         height: 82.r,
                         width: 82.r,
                         child: ClipOval(
-                          child: AppCachedImage(
-                            url:
-                                "${AppConstants.appImgBaseUrl}${currentUserModel.avatar ?? ""}",
-                          ),
+                          child: hasAvatar
+                              ? AppCachedImage(
+                                  url: "${AppConstants.appImgBaseUrl}$avatarUrl",
+                                  placeholder: defaultAvatar,
+                                  error: defaultAvatar,
+                                )
+                              : defaultAvatar,
                         ),
-                      );
-                    },
-                  ),
-                  Text(
-                    currentUserModel.fullName ?? '',
-                    style: Theme.of(context).textTheme.titleMedium!.copyWith(),
-                  ),
-                  Text(
-                    currentUserModel.phoneNumber ?? '',
-                    style: Theme.of(context).textTheme.bodyMedium!.copyWith(),
-                  ),
-                ],
+                      ),
+                      if (displayName.isNotEmpty) ...[
+                        SizedBox(height: 10.h),
+                        Text(
+                          displayName,
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                      ],
+                      if (subInfo.isNotEmpty) ...[
+                        SizedBox(height: 4.h),
+                        Text(
+                          subInfo,
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                color: Theme.of(context).colorScheme.onSecondary,
+                              ),
+                        ),
+                      ],
+                    ],
+                  );
+                },
               ),
               SizedBox(height: 16.h),
               Container(
                 margin: EdgeInsets.symmetric(horizontal: 24.w),
-                height: 242.h,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Padding(
                       padding: EdgeInsets.only(right: 8.w),
@@ -194,6 +247,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             ),
                       ),
                     ),
+                    SizedBox(height: 15.h),
                     Container(
                       padding: EdgeInsets.symmetric(
                         vertical: 20.h,
@@ -205,15 +259,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                       child: Column(
                         children: [
-                          // ProfileHomeItem(
-                          //   iconPath: "assets/icons/description.svg",
-                          //   title: "my_ad".tr(),
-                          //   onTap: () => goScreen(
-                          //     context: context,
-                          //     screen: StatelessWidget(),
-                          //   ),
-                          // ),
-                          SizedBox(height: 8.h),
                           ProfileHomeItem(
                             iconPath: "assets/icons/edit_fill.svg",
                             title: "user_account_edit".tr(),
@@ -226,44 +271,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             ),
                           ),
                           SizedBox(height: 8.h),
-                          BlocConsumer<AuthBloc, AuthState>(
-                            listenWhen: (previous, current) {
-                              return current is ChangePasswordRequestSuccess ||
-                                  current is ChangePasswordRequestError;
-                            },
-                            listener: (context, state) {
-                              if (state is ChangePasswordRequestSuccess) {
-                                goScreen(
-                                  context: context,
-                                  screen: VerifyCodeScreen(
-                                    isRegister: false,
-                                    isChangePassword: true,
-                                    email: currentUserModel.email ?? '',
-                                  ),
-                                );
-                              } else if (state is ChangePasswordRequestError) {
-                                showCustomSnackBar(
-                                  context: context,
-                                  title: 'error_title'.tr(),
-                                  content: state.message,
-                                  status: ToastificationType.error,
-                                );
-                              }
-                            },
-                            builder: (context, state) {
-                              return ProfileHomeItem(
-                                iconPath: "assets/icons/lock.svg",
-                                title: "change_password".tr(),
-                                onTap: () {
-                                  if (state is ChangePasswordRequestLoading)
-                                    return;
-                                  context.read<AuthBloc>().add(
-                                    ChangePasswordRequestEvent(),
-                                  );
-                                },
+                          ProfileHomeItem(
+                            iconPath: "assets/icons/lock.svg",
+                            title: "change_password".tr(),
+                            onTap: () {
+                              goScreen(
+                                context: context,
+                                screen: ChangePasswordScreen(
+                                  isReset: false,
+                                  email: currentUserModel.email,
+                                ),
                               );
                             },
                           ),
+
                         ],
                       ),
                     ),

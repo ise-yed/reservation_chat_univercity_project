@@ -1,7 +1,10 @@
 import 'dart:async';
 import 'dart:io';
+
 import 'package:dio/dio.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:flutter/material.dart';
+
 import '../constants/app_constants.dart';
 import '../constants/app_setting.dart';
 import 'app_error.dart';
@@ -13,10 +16,12 @@ import 'network_connection.dart';
 const _publicAuthPaths = [
   'auth/login/',
   'auth/register/',
-  'auth/refresh/',
+  'auth/token/refresh/',
   'auth/password/reset/',
   'auth/password/reset/request-otp/',
   'auth/password/reset/confirm/',
+  'auth/password/change/request-otp/',
+  'auth/password/change/confirm/',
 ];
 
 bool isPublicAuthPath(String path) =>
@@ -61,23 +66,33 @@ class ConnectivityAndErrorInterceptor extends Interceptor {
     }
 
     final data = response.data;
-    final serverMessage = _extractMessage(
-      data,
-      headers: response.headers,
+    debugPrint(
+      '================ [API RESPONSE ${response.statusCode}] ================',
     );
+    debugPrint('URL: ${response.requestOptions.path}');
+    debugPrint('DATA: $data');
+    debugPrint('======================================================');
+
+    final serverMessage = _extractMessage(data, headers: response.headers);
 
     String? serverErrorCode;
     Map<String, dynamic>? errors;
     if (data is Map) {
       if (data['error_code'] is String) serverErrorCode = data['error_code'];
-      if (data['errors'] is Map) errors = Map<String, dynamic>.from(data['errors']);
+      if (data['errors'] is Map)
+        errors = Map<String, dynamic>.from(data['errors']);
     }
 
     return handler.reject(
       DioException(
         requestOptions: response.requestOptions,
         response: response,
-        error: AppException(_mapStatus(sc), serverMessage: serverMessage, serverErrorCode: serverErrorCode, errors: errors),
+        error: AppException(
+          _mapStatus(sc),
+          serverMessage: serverMessage,
+          serverErrorCode: serverErrorCode,
+          errors: errors,
+        ),
         type: DioExceptionType.badResponse,
       ),
     );
@@ -141,6 +156,12 @@ class ConnectivityAndErrorInterceptor extends Interceptor {
       final code = err.response?.statusCode ?? 0;
       final mapped = _mapStatus(code);
       final data = err.response?.data;
+      debugPrint(
+        '================ [API ON_ERROR ${err.response?.statusCode}] ================',
+      );
+      debugPrint('URL: ${err.requestOptions.path}');
+      debugPrint('DATA: $data');
+      debugPrint('======================================================');
       final serverMessage = _extractMessage(
         data,
         headers: err.response?.headers,
@@ -150,11 +171,19 @@ class ConnectivityAndErrorInterceptor extends Interceptor {
       Map<String, dynamic>? errors;
       if (data is Map) {
         if (data['error_code'] is String) serverErrorCode = data['error_code'];
-        if (data['errors'] is Map) errors = Map<String, dynamic>.from(data['errors']);
+        if (data['errors'] is Map)
+          errors = Map<String, dynamic>.from(data['errors']);
       }
 
       return handler.next(
-        err.copyWith(error: AppException(mapped, serverMessage: serverMessage, serverErrorCode: serverErrorCode, errors: errors)),
+        err.copyWith(
+          error: AppException(
+            mapped,
+            serverMessage: serverMessage,
+            serverErrorCode: serverErrorCode,
+            errors: errors,
+          ),
+        ),
       );
     }
 
@@ -264,13 +293,13 @@ class TokenRefreshInterceptor extends Interceptor {
     required String baseUrl,
     required this.onSessionExpired,
   }) : _refreshDio = Dio(
-          BaseOptions(
-            baseUrl: baseUrl,
-            connectTimeout: const Duration(seconds: 10),
-            receiveTimeout: const Duration(seconds: 10),
-            validateStatus: (_) => true,
-          ),
-        );
+         BaseOptions(
+           baseUrl: baseUrl,
+           connectTimeout: const Duration(seconds: 10),
+           receiveTimeout: const Duration(seconds: 10),
+           validateStatus: (_) => true,
+         ),
+       );
 
   // ── onError ──────────────────────────────────────────────────────────────
   @override
@@ -279,26 +308,33 @@ class TokenRefreshInterceptor extends Interceptor {
     ErrorInterceptorHandler handler,
   ) async {
     final statusCode = err.response?.statusCode;
+    final path = err.requestOptions.path;
+
+    debugPrint('🔄 [TokenRefresh] onError called: path=$path status=$statusCode errorType=${err.type}');
 
     // Only intercept 401 for authenticated requests that carry a token.
-    final hasToken =
-        err.requestOptions.headers['Authorization']?.toString().isNotEmpty ==
-            true;
+    final authHeader = err.requestOptions.headers['Authorization']?.toString() ?? '';
+    final hasToken = authHeader.isNotEmpty;
+
+    debugPrint('🔄 [TokenRefresh] hasToken=$hasToken, statusCode=$statusCode');
+
     if (statusCode != 401 || !hasToken) {
+      debugPrint('🔄 [TokenRefresh] Skipping — not a 401 or no token. Passing through.');
       return handler.next(err);
     }
 
-    // Skip if this IS the refresh endpoint itself (avoid infinite loop),
-    // or any other public auth endpoint (login/register/password-reset)
-    // — on these paths a 401 means bad credentials, not an expired token.
-    if (isPublicAuthPath(err.requestOptions.path)) {
+    // Skip public auth endpoints — 401 there means bad credentials.
+    if (isPublicAuthPath(path)) {
+      debugPrint('🔄 [TokenRefresh] Skipping — public auth path: $path');
       return handler.next(err);
     }
+
+    debugPrint('🔄 [TokenRefresh] 401 on protected path. Attempting refresh...');
 
     // ── Check internet connectivity ──────────────────────────────────────
     final isOnline = await NetworkManager.hasInternetConnection();
     if (!isOnline) {
-      // No network: surface a noInternet error — do NOT log the user out.
+      debugPrint('🔄 [TokenRefresh] No internet. Returning noInternet error (NO logout).');
       return handler.reject(
         DioException(
           requestOptions: err.requestOptions,
@@ -310,8 +346,10 @@ class TokenRefreshInterceptor extends Interceptor {
 
     // ── Refresh flow ─────────────────────────────────────────────────────
     final refreshToken = prefs.getString(AppConstants.userRefreshToken);
+    debugPrint('🔄 [TokenRefresh] refreshToken present: ${refreshToken != null && refreshToken.isNotEmpty}');
+
     if (refreshToken == null || refreshToken.isEmpty) {
-      // No refresh token stored → session is effectively expired.
+      debugPrint('🔄 [TokenRefresh] No refresh token → session expired.');
       await onSessionExpired();
       return handler.reject(
         DioException(
@@ -324,13 +362,15 @@ class TokenRefreshInterceptor extends Interceptor {
     }
 
     if (_isRefreshing) {
-      // Queue this request until the ongoing refresh resolves.
+      debugPrint('🔄 [TokenRefresh] Refresh already in progress — queuing request.');
       final completer = Completer<Response>();
       _pendingQueue.add(_PendingRequest(err.requestOptions, completer));
       try {
         final response = await completer.future;
+        debugPrint('🔄 [TokenRefresh] Queued request resolved after refresh.');
         return handler.resolve(response);
       } catch (e) {
+        debugPrint('🔄 [TokenRefresh] Queued request rejected after failed refresh.');
         return handler.reject(
           DioException(
             requestOptions: err.requestOptions,
@@ -343,10 +383,11 @@ class TokenRefreshInterceptor extends Interceptor {
 
     _isRefreshing = true;
     try {
+      debugPrint('🔄 [TokenRefresh] Calling _doRefresh...');
       final newAccess = await _doRefresh(refreshToken);
 
       if (newAccess == null) {
-        // Refresh call returned an error → session expired.
+        debugPrint('🔄 [TokenRefresh] _doRefresh returned null → session expired.');
         _rejectPending();
         await onSessionExpired();
         return handler.reject(
@@ -359,14 +400,15 @@ class TokenRefreshInterceptor extends Interceptor {
         );
       }
 
-      // Persist the new access token.
+      debugPrint('🔄 [TokenRefresh] Got new access token. Saving and retrying original request.');
       await prefs.setString(AppConstants.userToken, newAccess);
 
-      // Retry the original request with the new token.
       final retried = await _retry(err.requestOptions, newAccess);
+      debugPrint('🔄 [TokenRefresh] Retry response status: ${retried.statusCode}');
       _resolvePending(newAccess);
       return handler.resolve(retried);
-    } catch (_) {
+    } catch (e) {
+      debugPrint('🔄 [TokenRefresh] Exception during refresh/retry: $e → session expired.');
       _rejectPending();
       await onSessionExpired();
       return handler.reject(
@@ -387,16 +429,23 @@ class TokenRefreshInterceptor extends Interceptor {
   /// failure (expired / invalid refresh token).
   Future<String?> _doRefresh(String refreshToken) async {
     try {
+      debugPrint('🔄 [TokenRefresh] POST auth/token/refresh/');
       final response = await _refreshDio.post(
-        'auth/refresh/',
+        'auth/token/refresh/',
         data: {'refresh': refreshToken},
+        options: Options(contentType: 'application/json'),
       );
+      debugPrint('🔄 [TokenRefresh] Refresh response status: ${response.statusCode}');
+      debugPrint('🔄 [TokenRefresh] Refresh response data: ${response.data}');
       if (response.statusCode == 200) {
         final newAccess = response.data?['access']?.toString();
+        debugPrint('🔄 [TokenRefresh] New access token: ${newAccess != null ? '✅ received' : '❌ null'}');
         return (newAccess != null && newAccess.isNotEmpty) ? newAccess : null;
       }
+      debugPrint('🔄 [TokenRefresh] Refresh failed with status ${response.statusCode}');
       return null;
-    } catch (_) {
+    } catch (e) {
+      debugPrint('🔄 [TokenRefresh] _doRefresh exception: $e');
       return null;
     }
   }
@@ -441,9 +490,7 @@ class TokenRefreshInterceptor extends Interceptor {
 
   void _rejectPending() {
     for (final pending in _pendingQueue) {
-      pending.completer.completeError(
-        AppException(AppErrorCode.unauthorized),
-      );
+      pending.completer.completeError(AppException(AppErrorCode.unauthorized));
     }
     _pendingQueue.clear();
   }
