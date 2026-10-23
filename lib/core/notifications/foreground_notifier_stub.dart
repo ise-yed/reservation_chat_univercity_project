@@ -7,10 +7,12 @@ final FlutterLocalNotificationsPlugin localNotifications =
     FlutterLocalNotificationsPlugin();
 
 class ForegroundNotifier {
-  static const String channelId = 'nestak_alerts_v3';
-  static const String channelName = 'Nestak Alerts';
+  static const String channelId =
+      'reservation_chat_univercity_project_alerts_v3';
+  static const String channelName =
+      'reservation_chat_univercity_project Alerts';
   static const String channelDescription =
-      'Important notifications for Nestak (sound + heads-up)';
+      'Important notifications for reservation_chat_univercity_project (sound + heads-up)';
 
   static const Color notificationColor = Color(0xFFCD0012);
 

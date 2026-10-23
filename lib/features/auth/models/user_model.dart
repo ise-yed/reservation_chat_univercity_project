@@ -13,8 +13,7 @@ class UserModel {
 
   String? address;
   String? firebaseToken;
-  DateTime? subscriptionPurchaseDate;
-  DateTime? subscriptionExpireDate;
+
   DateTime? createdAt;
   DateTime? updatedAt;
 
@@ -32,8 +31,7 @@ class UserModel {
 
     this.address,
     this.firebaseToken,
-    this.subscriptionPurchaseDate,
-    this.subscriptionExpireDate,
+
     this.createdAt,
     this.updatedAt,
   });
@@ -53,12 +51,7 @@ class UserModel {
 
       address: json['address'],
       firebaseToken: json['firebaseToken'],
-      subscriptionPurchaseDate: json['subscriptionPurchaseDate'] != null
-          ? DateTime.tryParse(json['subscriptionPurchaseDate'])
-          : null,
-      subscriptionExpireDate: json['subscriptionExpireDate'] != null
-          ? DateTime.tryParse(json['subscriptionExpireDate'])
-          : null,
+
       createdAt: (json['created_at'] != null)
           ? DateTime.tryParse(json['created_at'])
           : (json['createdAt'] != null
@@ -87,8 +80,7 @@ class UserModel {
 
       'address': address,
       'firebaseToken': firebaseToken,
-      'subscriptionPurchaseDate': subscriptionPurchaseDate?.toIso8601String(),
-      'subscriptionExpireDate': subscriptionExpireDate?.toIso8601String(),
+
       // 'createdAt': createdAt?.toIso8601String(),
       // 'updatedAt': updatedAt?.toIso8601String(),
     };

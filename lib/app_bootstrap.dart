@@ -7,7 +7,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:reservation_chat_univercity_project/core/notifications/firebase_web_options.dart';
-
+import 'package:reservation_chat_univercity_project/features/messaging/bloc/chat_bloc.dart';
+import 'package:reservation_chat_univercity_project/features/messaging/service/chat_service.dart';
 
 import 'core/constants/app_setting.dart';
 import 'core/localization/locale_initializer.dart';
@@ -69,6 +70,7 @@ Future<void> bootstrap() async {
         providers: [
           BlocProvider<BlogBloc>(create: (context) => BlogBloc(BlogServices())),
           BlocProvider<AuthBloc>(create: (context) => AuthBloc(AuthServices())),
+          BlocProvider<ChatBloc>(create: (context) => ChatBloc(ChatServices())),
 
           BlocProvider<ProfileBloc>(
             create: (context) => ProfileBloc(ProfileService()),

@@ -112,7 +112,7 @@ class AuthServices {
         ),
       );
       final response = await dio.post(
-        'auth/token/refresh/',
+        'auth/refresh/',
         data: {'refresh': refreshToken},
         options: Options(contentType: 'application/json'),
       );

@@ -52,57 +52,49 @@ class _SplashScreenState extends State<SplashScreen> {
     final refreshToken = prefs.getString(AppConstants.userRefreshToken);
     final seenOnboarding = prefs.getBool(AppConstants.isOnboardingSeen) == true;
 
-    // No credentials at all → onboarding or login.
-    if ((token == null || token.isEmpty) &&
-        (refreshToken == null || refreshToken.isEmpty)) {
-      if (!seenOnboarding) {
-        goScreen(
-          context: context,
-          screen: const OnboardingsScreen(),
-          closeAllScreen: true,
-        );
-      } else {
-        goScreen(
-          context: context,
-          screen: const LoginScreen(),
-          closeAllScreen: true,
-        );
-      }
-      return;
+    void goLogin() {
+      goScreen(
+        context: context,
+        screen: seenOnboarding ? const LoginScreen() : const OnboardingsScreen(),
+        closeAllScreen: true,
+      );
     }
 
-    // We have at least a refresh token — try to silently refresh.
-    final authService = AuthServices();
-    final refreshed = await authService.refreshTokenOnStartup();
-
-    if (!mounted) return;
-
-    final stillHasToken = prefs.getString(AppConstants.userToken) != null;
-
-    if (refreshed || stillHasToken) {
-      // Either we got a fresh access token, or we're offline but have an
-      // existing token (per-request interceptor will handle offline errors).
+    // ── Case 1: Access token exists ────────────────────────────────────────
+    // Go straight to Root. The per-request TokenRefreshInterceptor will
+    // transparently handle a 401 if/when the token actually expires.
+    if (token != null && token.isNotEmpty) {
       goScreen(
         context: context,
         screen: const RootScreen(),
         closeAllScreen: true,
       );
-    } else {
-      // Refresh token was expired/invalid → force re-login.
-      if (!seenOnboarding) {
+      return;
+    }
+
+    // ── Case 2: No access token but refresh token exists ──────────────────
+    // Try to obtain a new access token silently (e.g. access token was
+    // cleared from storage but the refresh token is still valid).
+    if (refreshToken != null && refreshToken.isNotEmpty) {
+      final authService = AuthServices();
+      final refreshed = await authService.refreshTokenOnStartup();
+      if (!mounted) return;
+
+      if (refreshed) {
         goScreen(
           context: context,
-          screen: const OnboardingsScreen(),
+          screen: const RootScreen(),
           closeAllScreen: true,
         );
       } else {
-        goScreen(
-          context: context,
-          screen: const LoginScreen(),
-          closeAllScreen: true,
-        );
+        // Refresh token expired/invalid → must re-login.
+        goLogin();
       }
+      return;
     }
+
+    // ── Case 3: No credentials at all → login / onboarding ────────────────
+    goLogin();
   }
 
   Future<void> _ensureMinSplash() async {
@@ -138,7 +130,7 @@ class _SplashScreenState extends State<SplashScreen> {
 
         if (hasSub) {
           _goRoot();
-        } else {}
+        }
       } catch (e) {
         //debugPrint('Subscription check error: $e');
         _goRoot();
@@ -168,21 +160,7 @@ class _SplashScreenState extends State<SplashScreen> {
     }
   }
 
-  void _goOnboarding() {
-    goScreen(
-      context: context,
-      screen: const OnboardingsScreen(),
-      closeAllScreen: true,
-    );
-  }
 
-  void _goAuth() {
-    goScreen(
-      context: context,
-      screen: const RegisterScreen(),
-      closeAllScreen: true,
-    );
-  }
 
   void _goRoot() {
     goScreen(

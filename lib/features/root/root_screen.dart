@@ -5,6 +5,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:reservation_chat_univercity_project/core/constants/app_setting.dart';
 import 'package:reservation_chat_univercity_project/features/home/home.dart';
+import 'package:reservation_chat_univercity_project/features/messaging/screens/messaging_home_screen.dart';
 import 'package:reservation_chat_univercity_project/features/profile/screens/profile_screen.dart';
 import 'package:reservation_chat_univercity_project/features/root/placeholder_screens.dart';
 import 'package:reservation_chat_univercity_project/features/appointments/screens/appointments_screen.dart';
@@ -28,7 +29,7 @@ class _RootScreenState extends State<RootScreen> {
     if (role == _kRoleProvider) {
       return const [
         AppointmentsScreen(),
-        ChatsScreen(),
+        MessagingHomeScreen(),
         MyServicesScreen(),
         ProfileScreen(),
       ];
@@ -36,7 +37,7 @@ class _RootScreenState extends State<RootScreen> {
     return const [
       HomeScreen(),
       AppointmentsScreen(),
-      ChatsScreen(),
+      MessagingHomeScreen(),
       ProfileScreen(),
     ];
   }

@@ -8,6 +8,7 @@ import 'package:reservation_chat_univercity_project/core/widgets/app_cached_imag
 import 'package:reservation_chat_univercity_project/features/profile/screens/notification_screen.dart';
 import 'package:reservation_chat_univercity_project/features/profile/screens/profile_screen.dart';
 import 'package:reservation_chat_univercity_project/features/appointments/screens/doctor_profile_booking_screen.dart';
+import 'package:reservation_chat_univercity_project/features/home/specialty_doctors_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -198,7 +199,7 @@ class _HomeScreenState extends State<HomeScreen>
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     // کادر جستجو و دکمه فیلتر پیشرفته
-                    _buildSearchAndFilterBar(context),
+                    // _buildSearchAndFilterBar(context),
 
                     // بخش دسته‌بندی تخصص‌ها (Grid 4 ستونه)
                     _buildSpecialtiesSection(context),
@@ -661,7 +662,14 @@ class _HomeScreenState extends State<HomeScreen>
                   child: InkWell(
                     borderRadius: BorderRadius.circular(16.r),
                     onTap: () {
-                      // فیلتر پزشکان بر اساس تخصص انتخاب‌شده
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => SpecialtyDoctorsScreen(
+                            specialtyId: item.id,
+                            specialtyTitle: item.title,
+                          ),
+                        ),
+                      );
                     },
                     child: Container(
                       padding: EdgeInsets.all(8.r),

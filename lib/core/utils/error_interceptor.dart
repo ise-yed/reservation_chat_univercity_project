@@ -16,7 +16,7 @@ import 'network_connection.dart';
 const _publicAuthPaths = [
   'auth/login/',
   'auth/register/',
-  'auth/token/refresh/',
+  'auth/refresh/',
   'auth/password/reset/',
   'auth/password/reset/request-otp/',
   'auth/password/reset/confirm/',
@@ -429,9 +429,9 @@ class TokenRefreshInterceptor extends Interceptor {
   /// failure (expired / invalid refresh token).
   Future<String?> _doRefresh(String refreshToken) async {
     try {
-      debugPrint('🔄 [TokenRefresh] POST auth/token/refresh/');
+      debugPrint('🔄 [TokenRefresh] POST auth/refresh/');
       final response = await _refreshDio.post(
-        'auth/token/refresh/',
+        'auth/refresh/',
         data: {'refresh': refreshToken},
         options: Options(contentType: 'application/json'),
       );
