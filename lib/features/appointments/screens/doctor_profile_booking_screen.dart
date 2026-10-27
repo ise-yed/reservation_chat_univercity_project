@@ -1,18 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:shamsi_date/shamsi_date.dart';
 import 'package:reservation_chat_univercity_project/core/themes/app_colors.dart';
-import 'package:reservation_chat_univercity_project/core/widgets/app_cached_image.dart';
-
-/// نوع ویزیت مطابق با apps/offerings/enums.py در بک‌اند جنگو
-enum VisitModeType {
-  inPerson('in_person'),
-  onlineChat('online_chat');
-
-  final String apiValue;
-  const VisitModeType(this.apiValue);
-}
+import 'package:reservation_chat_univercity_project/core/widgets/global_error_section.dart';
+import 'package:reservation_chat_univercity_project/core/widgets/global_loading_section.dart';
+import 'package:reservation_chat_univercity_project/features/appointments/bloc/appointments_bloc.dart';
+import 'package:reservation_chat_univercity_project/features/appointments/bloc/doctor_booking_bloc.dart';
+import 'package:reservation_chat_univercity_project/features/appointments/screens/payment_gateway_screen.dart';
+import 'package:reservation_chat_univercity_project/features/appointments/service/model/appointment_models.dart';
+import 'package:reservation_chat_univercity_project/features/home/services/model/home_models.dart';
+import 'package:shamsi_date/shamsi_date.dart';
 
 class DoctorProfileBookingScreen extends StatefulWidget {
   final String? providerId;
@@ -40,68 +38,41 @@ class _DoctorProfileBookingScreenState
   bool _isBookmarked = false;
   bool _isBioExpanded = false;
 
-  // نوع خدمت انتخاب شده (پیش‌فرض: ویزیت حضوری)
-  VisitModeType _selectedVisitMode = VisitModeType.inPerson;
-
-  // ایندکس روز انتخاب شده در تقویم افقی
   int _selectedDateIndex = 0;
-
-  // ساعت انتخاب شده
-  String? _selectedSlotId = 'slot_2';
+  String? _selectedSlotStartAt;
+  PaymentMethodType _selectedInPersonPaymentMethod = PaymentMethodType.online;
 
   final TextEditingController _notesController = TextEditingController();
 
   late final List<_JalaliDayItem> _upcomingDays;
-
-  // اطلاعات خدمات پزشک (معادل پاسخ GET /api/v1/offerings/?provider_id=...)
-  final Map<VisitModeType, _OfferingItemModel> _offerings = const {
-    VisitModeType.inPerson: _OfferingItemModel(
-      id: 'off_in_person_1',
-      title: 'ویزیت حضوری مطب',
-      subtitle: 'معاینه فیزیکی کامل و چکاپ علائم حیاتی در مطب',
-      badgeText: 'توصیه شده',
-      durationMinutes: 30,
-      priceFormatted: '۲۸۰,۰۰۰',
-      priceValue: 280000,
-      visitMode: VisitModeType.inPerson,
-    ),
-    VisitModeType.onlineChat: _OfferingItemModel(
-      id: 'off_online_chat_1',
-      title: 'مشاوره آنلاین متنی و صوتی',
-      subtitle: 'گفت‌وگو در محیط چت و ارسال مدارک، عکس آزمایش و ویس',
-      badgeText: 'چت و ویس پزشکی',
-      durationMinutes: 45,
-      priceFormatted: '۱۹۰,۰۰۰',
-      priceValue: 190000,
-      visitMode: VisitModeType.onlineChat,
-    ),
-  };
-
-  // لیست ساعت‌های روز انتخابی (معادل پاسخ GET /api/v1/availability/slots/)
-  final List<_TimeSlotItem> _slots = const [
-    _TimeSlotItem(id: 'slot_1', timeLabel: '۱۶:۰۰', isAvailable: false),
-    _TimeSlotItem(id: 'slot_2', timeLabel: '۱۶:۳۰', isAvailable: true),
-    _TimeSlotItem(id: 'slot_3', timeLabel: '۱۷:۰۰', isAvailable: true),
-    _TimeSlotItem(id: 'slot_4', timeLabel: '۱۷:۳۰', isAvailable: true),
-    _TimeSlotItem(id: 'slot_5', timeLabel: '۱۸:۰۰', isAvailable: false),
-    _TimeSlotItem(id: 'slot_6', timeLabel: '۱۸:۳۰', isAvailable: true),
-    _TimeSlotItem(id: 'slot_7', timeLabel: '۱۹:۰۰', isAvailable: true),
-    _TimeSlotItem(id: 'slot_8', timeLabel: '۱۹:۳۰', isAvailable: true),
-  ];
+  late final DoctorBookingBloc _bookingBloc;
+  late final AppointmentsBloc _submitBloc;
 
   @override
   void initState() {
     super.initState();
     _upcomingDays = _generateUpcomingJalaliDays(7);
+    _bookingBloc = DoctorBookingBloc();
+    _submitBloc = AppointmentsBloc();
+
+    if (widget.providerId != null && widget.providerId!.isNotEmpty) {
+      _bookingBloc.add(
+        LoadProviderAndOfferingsEvent(
+          providerId: widget.providerId!,
+          initialDate: _upcomingDays.first.gregorianDate,
+        ),
+      );
+    }
   }
 
   @override
   void dispose() {
     _notesController.dispose();
+    _bookingBloc.close();
+    _submitBloc.close();
     super.dispose();
   }
 
-  /// تولید ۷ روز آینده بر اساس تقویم شمسی واقعی به همراه تاریخ میلادی برای ارسال به API
   List<_JalaliDayItem> _generateUpcomingJalaliDays(int count) {
     final now = DateTime.now();
     return List.generate(count, (index) {
@@ -116,8 +87,6 @@ class _DoctorProfileBookingScreenState
         topLabel = 'فردا';
       } else if (index == 2) {
         topLabel = 'پس‌فردا';
-      } else if (index == 3) {
-        topLabel = 'تکمیل';
       } else {
         topLabel = formatter.mN;
       }
@@ -127,35 +96,21 @@ class _DoctorProfileBookingScreenState
 
       return _JalaliDayItem(
         topLabel: topLabel,
-        dayNumber: _toPersianDigits(jalali.day.toString()),
+        dayNumber: toPersianDigits(jalali.day.toString()),
         weekDayName: formatter.wN,
         fullDisplayTitle:
-            '${formatter.wN} ${_toPersianDigits(jalali.day.toString())} ${formatter.mN}',
+            '${formatter.wN} ${toPersianDigits(jalali.day.toString())} ${formatter.mN}',
         monthYearTitle:
-            '${formatter.mN} ${_toPersianDigits(jalali.year.toString())}',
+            '${formatter.mN} ${toPersianDigits(jalali.year.toString())}',
         gregorianDate: gregorianIso,
-        isDisabled: index == 3, // نمونه روز تکمیل ظرفیت
-        badgeCount: index == 2 ? '۳ نوبت' : null,
       );
     });
   }
 
-  String _toPersianDigits(String input) {
-    const english = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
-    const persian = ['۰', '۱', '۲', '۳', '۴', '۵', '۶', '۷', '۸', '۹'];
-    String output = input;
-    for (int i = 0; i < english.length; i++) {
-      output = output.replaceAll(english[i], persian[i]);
-    }
-    return output;
-  }
-
-  _OfferingItemModel get _currentOffering => _offerings[_selectedVisitMode]!;
-
-  _TimeSlotItem? get _selectedSlot {
-    if (_selectedSlotId == null) return null;
+  AvailableSlotModel? _findSelectedSlot(List<AvailableSlotModel> slots) {
+    if (_selectedSlotStartAt == null) return null;
     try {
-      return _slots.firstWhere((s) => s.id == _selectedSlotId);
+      return slots.firstWhere((s) => s.rawStartAt == _selectedSlotStartAt);
     } catch (_) {
       return null;
     }
@@ -163,66 +118,202 @@ class _DoctorProfileBookingScreenState
 
   @override
   Widget build(BuildContext context) {
-    return Directionality(
-      textDirection: TextDirection.rtl,
-      child: Scaffold(
-        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-        body: Stack(
-          children: [
-            Column(
-              children: [
-                // هدر بالای صفحه
-                _buildAppBar(context),
-
-                // محتوای قابل اسکرول
-                Expanded(
-                  child: SingleChildScrollView(
-                    physics: const BouncingScrollPhysics(),
-                    padding: EdgeInsets.fromLTRB(16.w, 12.h, 16.w, 140.h),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        // ۱. کارت اطلاعات جامع پزشک
-                        _buildDoctorInfoCard(context),
-                        SizedBox(height: 20.h),
-
-                        // ۲. انتخابگر شیوه ویزیت (حضوری / چت آنلاین)
-                        _buildVisitModeSection(context),
-                        SizedBox(height: 16.h),
-
-                        // باکس اطلاعات وابسته به نوع ویزیت (آدرس مطب یا قوانین چت آنلاین)
-                        _buildVisitModeContextBox(context),
-                        SizedBox(height: 20.h),
-
-                        // ۳. تقویم شمسی افقی
-                        _buildJalaliCalendarSection(context),
-                        SizedBox(height: 20.h),
-
-                        // ۴. شبکه ساعت‌های خالی (Time Slots Grid)
-                        _buildTimeSlotsSection(context),
-                        SizedBox(height: 20.h),
-
-                        // فیلد اختیاری یادداشت/علائم بیمار برای پزشک
-                        _buildPatientNotesField(context),
-                        SizedBox(height: 16.h),
-
-                        // کارت پشتیبانی و تضمین بازگشت وجه
-                        _buildSupportAssuranceCard(context),
-                      ],
-                    ),
+    return MultiBlocProvider(
+      providers: [
+        BlocProvider<DoctorBookingBloc>.value(value: _bookingBloc),
+        BlocProvider<AppointmentsBloc>.value(value: _submitBloc),
+      ],
+      child: BlocListener<AppointmentsBloc, AppointmentsState>(
+        listenWhen: (previous, current) =>
+            current is CreateAppointmentSuccessState ||
+            current is CreateAppointmentFailedState,
+        listener: (context, state) async {
+          if (state is CreateAppointmentFailedState) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                behavior: SnackBarBehavior.floating,
+                backgroundColor: AppColors.statusCancelledFg,
+                content: Text(state.message),
+              ),
+            );
+          } else if (state is CreateAppointmentSuccessState) {
+            final appointment = state.appointment;
+            if (appointment.payUrl != null &&
+                appointment.payUrl!.trim().isNotEmpty) {
+              final paid = await Navigator.of(context).push<bool>(
+                MaterialPageRoute(
+                  builder: (_) => PaymentGatewayScreen(
+                    payUrl: appointment.payUrl!,
+                    paymentId: appointment.payment?.id,
+                    doctorName: appointment.provider.displayName,
+                    offeringTitle: appointment.offering.title,
+                    amountText: appointment.offering.priceFormatted,
                   ),
                 ),
-              ],
-            ),
+              );
 
-            // ۵. فوتر چسبان پایین صفحه (مبلغ و پرداخت زرین‌پال)
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 0,
-              child: _buildStickyBottomBar(context),
+              if (!context.mounted) return;
+              if (paid == true) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    behavior: SnackBarBehavior.floating,
+                    backgroundColor: AppColors.green,
+                    content: Text('نوبت شما با موفقیت ثبت و پرداخت شد.'),
+                  ),
+                );
+                Navigator.of(context).maybePop(true);
+              } else {
+                // رفرش اسلات‌ها در صورت عدم تکمیل پرداخت
+                final activeDay = _upcomingDays[_selectedDateIndex];
+                _bookingBloc.add(
+                  SelectBookingDateEvent(date: activeDay.gregorianDate),
+                );
+              }
+            } else {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  behavior: SnackBarBehavior.floating,
+                  backgroundColor: AppColors.green,
+                  content: Text('نوبت شما با موفقیت ثبت شد.'),
+                ),
+              );
+              Navigator.of(context).maybePop(true);
+            }
+          }
+        },
+        child: Directionality(
+          textDirection: TextDirection.rtl,
+          child: Scaffold(
+            backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+            body: BlocBuilder<DoctorBookingBloc, DoctorBookingState>(
+              builder: (context, state) {
+                if (state is DoctorBookingLoadingState ||
+                    state is DoctorBookingInitial) {
+                  return Column(
+                    children: [
+                      _buildAppBar(context),
+                      Expanded(child: GlobalLoadingSection()),
+                    ],
+                  );
+                }
+
+                if (state is DoctorBookingFailedState) {
+                  return Column(
+                    children: [
+                      _buildAppBar(context),
+                      Expanded(
+                        child: GlobalErrorSection(
+                          message: state.message,
+                          onRetry: () {
+                            if (widget.providerId != null) {
+                              _bookingBloc.add(
+                                LoadProviderAndOfferingsEvent(
+                                  providerId: widget.providerId!,
+                                  initialDate: _upcomingDays[_selectedDateIndex]
+                                      .gregorianDate,
+                                ),
+                              );
+                            }
+                          },
+                        ),
+                      ),
+                    ],
+                  );
+                }
+
+                if (state is DoctorBookingLoadedState) {
+                  final selectedSlot = _findSelectedSlot(state.slots);
+
+                  return Stack(
+                    children: [
+                      Column(
+                        children: [
+                          _buildAppBar(context),
+                          Expanded(
+                            child: SingleChildScrollView(
+                              physics: const BouncingScrollPhysics(),
+                              padding: EdgeInsets.fromLTRB(
+                                16.w,
+                                12.h,
+                                16.w,
+                                150.h,
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  // ۱. کارت اطلاعات پزشک
+                                  _buildDoctorInfoCard(context, state.provider),
+                                  SizedBox(height: 20.h),
+
+                                  // ۲. انتخابگر شیوه ویزیت (اگر ۲ خدمت دارد هر دو، اگر ۱ خدمت دارد انتخاب خودکار)
+                                  if (state.offerings.isEmpty)
+                                    _buildNoOfferingsBox(context)
+                                  else ...[
+                                    if (state.hasBothVisitModes) ...[
+                                      _buildVisitModeSection(context, state),
+                                      SizedBox(height: 16.h),
+                                    ] else if (state.selectedOffering !=
+                                        null) ...[
+                                      _buildSingleOfferingSummary(
+                                        context,
+                                        state.selectedOffering!,
+                                      ),
+                                      SizedBox(height: 16.h),
+                                    ],
+
+                                    if (state.selectedOffering != null) ...[
+                                      _buildVisitModeContextBox(
+                                        context,
+                                        provider: state.provider,
+                                        offering: state.selectedOffering!,
+                                      ),
+                                      SizedBox(height: 20.h),
+
+                                      // ۳. تقویم شمسی افقی
+                                      _buildJalaliCalendarSection(
+                                        context,
+                                        state,
+                                      ),
+                                      SizedBox(height: 20.h),
+
+                                      // ۴. شبکه ساعت‌های خالی
+                                      _buildTimeSlotsSection(context, state),
+                                      SizedBox(height: 20.h),
+
+                                      // ۵. یادداشت بیمار
+                                      _buildPatientNotesField(context),
+                                      SizedBox(height: 16.h),
+                                    ],
+                                  ],
+
+                                  _buildSupportAssuranceCard(context),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      if (state.selectedOffering != null)
+                        Positioned(
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
+                          child: _buildStickyBottomBar(
+                            context,
+                            provider: state.provider,
+                            offering: state.selectedOffering!,
+                            selectedSlot: selectedSlot,
+                          ),
+                        ),
+                    ],
+                  );
+                }
+
+                return const SizedBox.shrink();
+              },
             ),
-          ],
+          ),
         ),
       ),
     );
@@ -278,15 +369,6 @@ class _DoctorProfileBookingScreenState
               Row(
                 children: [
                   IconButton(
-                    onPressed: () {},
-                    icon: Icon(
-                      Icons.share_outlined,
-                      size: 22.r,
-                      color: AppColors.onSurfaceVariant,
-                    ),
-                    tooltip: 'اشتراک‌گذاری',
-                  ),
-                  IconButton(
                     onPressed: () {
                       setState(() {
                         _isBookmarked = !_isBookmarked;
@@ -313,17 +395,23 @@ class _DoctorProfileBookingScreenState
   }
 
   // ---------------------------------------------------------------------------
-  // ۱. کارت اطلاعات جامع پزشک (Provider Details)
+  // ۱. کارت اطلاعات پزشک (بدون امتیاز، کد نظام پزشکی و نشانگر آنلاین)
   // ---------------------------------------------------------------------------
-  Widget _buildDoctorInfoCard(BuildContext context) {
+  Widget _buildDoctorInfoCard(
+    BuildContext context,
+    ProviderProfileModel provider,
+  ) {
     final textTheme = Theme.of(context).textTheme;
-    final doctorName = widget.initialDoctorName ?? 'دکتر علیرضا رادمنش';
-    final specialty =
-        widget.initialSpecialty ?? 'فوق تخصص بیماری‌های قلب و عروق';
-    final medicalCode = widget.initialMedicalCode ?? '۱۱۴۸۲۹';
-    final avatarUrl =
-        widget.initialAvatarUrl ??
-        'https://lh3.googleusercontent.com/aida-public/AB6AXuDWsxLAcE0CLN0KLcP_YqNuLwqgIMSh94BDH8T1wJNlEBVgplGSkn96LmpWvIb0UiPyaLs9e4qelS4p3lY5QjEmr3XthmwzmG4qaiBmGykF7zR2VbkUw-T2Q2tYQ8-qmoYmmnRMqm2O5y5rjn7RWmSDBeUevqNNTC7fbpAt7get-0p91U1cn9Ml1q330aNdWhs7Oim-I6V2bcPo7cxFWPjWkxjHCzntfbf0nmi9sRTRFGOwkIGVi6kO';
+    final doctorName = provider.displayName.isNotEmpty
+        ? provider.displayName
+        : (widget.initialDoctorName ?? '');
+    final specialty = provider.specialtiesTitle.isNotEmpty
+        ? provider.specialtiesTitle
+        : (widget.initialSpecialty ?? '');
+    final String initial = provider.user.fullName.trim().isNotEmpty
+        ? provider.user.fullName.trim().substring(0, 1)
+        : 'پ';
+    final String bioText = provider.bio.trim();
 
     return Container(
       padding: EdgeInsets.all(16.r),
@@ -342,47 +430,25 @@ class _DoctorProfileBookingScreenState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // عکس، نام، تخصص و کد نظام پزشکی
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  Container(
-                    width: 80.r,
-                    height: 80.r,
-                    decoration: BoxDecoration(
-                      color: AppColors.surfaceContainerHigh,
-                      borderRadius: BorderRadius.circular(16.r),
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(16.r),
-                      child: AppCachedImage(url: avatarUrl, fit: BoxFit.cover),
-                    ),
+              Container(
+                width: 76.r,
+                height: 76.r,
+                decoration: BoxDecoration(
+                  color: AppColors.primary50,
+                  borderRadius: BorderRadius.circular(16.r),
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  initial,
+                  style: textTheme.headlineMedium?.copyWith(
+                    fontSize: 26.sp,
+                    color: AppColors.primary500,
+                    fontWeight: FontWeight.w700,
                   ),
-                  Positioned(
-                    bottom: -4.r,
-                    left: -4.r,
-                    child: Container(
-                      width: 24.r,
-                      height: 24.r,
-                      decoration: BoxDecoration(
-                        color: AppColors.primary500,
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: AppColors.surfaceContainerLowest,
-                          width: 2,
-                        ),
-                      ),
-                      child: Icon(
-                        Icons.workspace_premium_rounded,
-                        size: 14.r,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                ],
+                ),
               ),
               SizedBox(width: 14.w),
               Expanded(
@@ -420,196 +486,123 @@ class _DoctorProfileBookingScreenState
                         fontWeight: FontWeight.w600,
                       ),
                     ),
-                    SizedBox(height: 2.h),
-                    Text(
-                      'فلوشیپ آنژیوپلاستی و اینترونشنال کاردیولوژی',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: textTheme.bodySmall?.copyWith(
-                        color: AppColors.onSurfaceVariant,
-                      ),
-                    ),
-                    SizedBox(height: 8.h),
-                    Container(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: 8.w,
-                        vertical: 3.h,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppColors.surfaceContainer,
-                        borderRadius: BorderRadius.circular(50.r),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
+                    if (provider.organization.name.isNotEmpty) ...[
+                      SizedBox(height: 6.h),
+                      Row(
                         children: [
                           Icon(
-                            Icons.badge_outlined,
-                            size: 13.r,
-                            color: AppColors.outline,
+                            Icons.apartment_rounded,
+                            size: 15.r,
+                            color: AppColors.onSurfaceVariant,
                           ),
                           SizedBox(width: 4.w),
-                          Text(
-                            'کد نظام پزشکی: $medicalCode',
-                            style: textTheme.titleSmall?.copyWith(
-                              color: AppColors.onSurfaceVariant,
+                          Expanded(
+                            child: Text(
+                              provider.clinicDisplayTitle,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: textTheme.bodySmall?.copyWith(
+                                color: AppColors.onSurfaceVariant,
+                              ),
                             ),
                           ),
                         ],
                       ),
-                    ),
+                    ],
                   ],
                 ),
               ),
             ],
           ),
-          SizedBox(height: 16.h),
-
-          // شبکه ۳ ستونه آمار عملکرد پزشک
-          Container(
-            padding: EdgeInsets.symmetric(vertical: 10.h, horizontal: 8.w),
-            decoration: BoxDecoration(
-              color: AppColors.surfaceContainerLow,
-              borderRadius: BorderRadius.circular(12.r),
-            ),
-            child: Row(
+          if (bioText.isNotEmpty) ...[
+            SizedBox(height: 14.h),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: _buildStatItem(
-                    context,
-                    icon: Icons.star_rounded,
-                    iconColor: AppColors.yellow,
-                    value: '۴.۹',
-                    label: '۲۴۵ دیدگاه بیمار',
+                Text(
+                  bioText,
+                  maxLines: _isBioExpanded ? null : 2,
+                  overflow: _isBioExpanded
+                      ? TextOverflow.visible
+                      : TextOverflow.ellipsis,
+                  style: textTheme.bodySmall?.copyWith(
+                    color: AppColors.onSurfaceVariant,
+                    height: 1.65,
                   ),
                 ),
-                Container(
-                  width: 1,
-                  height: 32.h,
-                  color: AppColors.text200Light,
-                ),
-                Expanded(
-                  child: _buildStatItem(
-                    context,
-                    icon: Icons.history_edu_rounded,
-                    iconColor: AppColors.primary500,
-                    value: '۱۵+ سال',
-                    label: 'سابقه طبابت',
+                if (bioText.length > 100) ...[
+                  SizedBox(height: 4.h),
+                  InkWell(
+                    borderRadius: BorderRadius.circular(6.r),
+                    onTap: () {
+                      setState(() {
+                        _isBioExpanded = !_isBioExpanded;
+                      });
+                    },
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(vertical: 2.h),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            _isBioExpanded
+                                ? 'بستن توضیحات'
+                                : 'مشاهده کامل بیوگرافی',
+                            style: textTheme.labelMedium?.copyWith(
+                              color: AppColors.primary500,
+                            ),
+                          ),
+                          SizedBox(width: 2.w),
+                          Icon(
+                            _isBioExpanded
+                                ? Icons.expand_less_rounded
+                                : Icons.expand_more_rounded,
+                            size: 16.r,
+                            color: AppColors.primary500,
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
-                ),
-                Container(
-                  width: 1,
-                  height: 32.h,
-                  color: AppColors.text200Light,
-                ),
-                Expanded(
-                  child: _buildStatItem(
-                    context,
-                    icon: Icons.thumb_up_alt_rounded,
-                    iconColor: AppColors.green,
-                    value: '۹۸٪',
-                    label: 'رضایت بیماران',
-                  ),
-                ),
+                ],
               ],
             ),
-          ),
-          SizedBox(height: 14.h),
-
-          // بیوگرافی کوتاه با قابلیت باز و بسته شدن
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                _isBioExpanded
-                    ? 'عضو هیئت علمی دانشگاه علوم پزشکی، دارای بورد تخصصی قلب و عروق و فلوشیپ اقدامات مداخله‌ای قلب (آنژیوگرافی و استنت‌گذاری). بیش از ۱۵ سال تجربه درمان بیماری‌های حاد دریچه‌ای، فشار خون مقاوم، آریتمی‌های قلبی و پیگیری‌های پس از جراحی قلب باز.'
-                    : 'عضو هیئت علمی دانشگاه علوم پزشکی، دارای بورد تخصصی قلب و عروق و فلوشیپ اقدامات مداخله‌ای قلب (آنژیوگرافی و استنت‌گذاری). بیش از ۱۵ سال تجربه درمان بیماری‌های حاد دریچه‌ای و عروقی...',
-                style: textTheme.bodySmall?.copyWith(
-                  color: AppColors.onSurfaceVariant,
-                  height: 1.65,
-                ),
-              ),
-              SizedBox(height: 4.h),
-              InkWell(
-                borderRadius: BorderRadius.circular(6.r),
-                onTap: () {
-                  setState(() {
-                    _isBioExpanded = !_isBioExpanded;
-                  });
-                },
-                child: Padding(
-                  padding: EdgeInsets.symmetric(vertical: 2.h),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        _isBioExpanded ? 'بستن سوابق' : 'مشاهده کامل سوابق',
-                        style: textTheme.labelMedium?.copyWith(
-                          color: AppColors.primary500,
-                        ),
-                      ),
-                      SizedBox(width: 2.w),
-                      Icon(
-                        _isBioExpanded
-                            ? Icons.expand_less_rounded
-                            : Icons.expand_more_rounded,
-                        size: 16.r,
-                        color: AppColors.primary500,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
+          ],
         ],
       ),
     );
   }
 
-  Widget _buildStatItem(
-    BuildContext context, {
-    required IconData icon,
-    required Color iconColor,
-    required String value,
-    required String label,
-  }) {
+  Widget _buildNoOfferingsBox(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, size: 16.r, color: iconColor),
-            SizedBox(width: 4.w),
-            Text(
-              value,
-              style: textTheme.headlineMedium?.copyWith(
-                fontSize: 15.5.sp,
-                fontWeight: FontWeight.w700,
-                color: AppColors.onSurface,
-              ),
-            ),
-          ],
+    return Container(
+      padding: EdgeInsets.all(20.r),
+      margin: EdgeInsets.only(bottom: 16.h),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceContainerLowest,
+        borderRadius: BorderRadius.circular(16.r),
+        border: Border.all(color: AppColors.text200Light),
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        'برای این پزشک هنوز خدمت فعالی تعریف نشده است.',
+        style: textTheme.bodyMedium?.copyWith(
+          color: AppColors.onSurfaceVariant,
         ),
-        SizedBox(height: 2.h),
-        Text(
-          label,
-          textAlign: TextAlign.center,
-          style: textTheme.titleSmall?.copyWith(
-            fontSize: 10.5.sp,
-            color: AppColors.onSurfaceVariant,
-          ),
-        ),
-      ],
+      ),
     );
   }
 
   // ---------------------------------------------------------------------------
-  // ۲. انتخابگر نوع خدمت (Visit Mode Tabs: in_person vs online_chat)
+  // ۲. انتخابگر شیوه ویزیت (نمایش فقط در صورتی که پزشک هر دو نوع ویزیت را داشته باشد)
   // ---------------------------------------------------------------------------
-  Widget _buildVisitModeSection(BuildContext context) {
+  Widget _buildVisitModeSection(
+    BuildContext context,
+    DoctorBookingLoadedState state,
+  ) {
     final textTheme = Theme.of(context).textTheme;
+    final inPerson = state.inPersonOffering;
+    final onlineChat = state.onlineChatOffering;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -643,32 +636,59 @@ class _DoctorProfileBookingScreenState
           ],
         ),
         SizedBox(height: 10.h),
-        _buildVisitModeCard(
-          context,
-          offering: _offerings[VisitModeType.inPerson]!,
-          icon: Icons.apartment_rounded,
-          activeColor: AppColors.primary500,
-          activeBgTint: AppColors.primary50,
-          badgeBgColor: AppColors.primary500.withOpacity(0.12),
-          badgeTextColor: AppColors.primary500,
-        ),
-        SizedBox(height: 10.h),
-        _buildVisitModeCard(
-          context,
-          offering: _offerings[VisitModeType.onlineChat]!,
-          icon: Icons.forum_rounded,
-          activeColor: AppColors.secondary,
-          activeBgTint: AppColors.surfaceContainer,
-          badgeBgColor: AppColors.statusPendingPaymentBg,
-          badgeTextColor: AppColors.statusPendingPaymentFg,
-        ),
+        if (inPerson != null) ...[
+          _buildVisitModeCard(
+            context,
+            offering: inPerson,
+            isSelected: state.selectedOffering?.id == inPerson.id,
+            icon: Icons.apartment_rounded,
+            activeColor: AppColors.primary500,
+            activeBgTint: AppColors.primary50,
+            badgeBgColor: AppColors.primary500.withOpacity(0.12),
+            badgeTextColor: AppColors.primary500,
+          ),
+          SizedBox(height: 10.h),
+        ],
+        if (onlineChat != null)
+          _buildVisitModeCard(
+            context,
+            offering: onlineChat,
+            isSelected: state.selectedOffering?.id == onlineChat.id,
+            icon: Icons.forum_rounded,
+            activeColor: AppColors.secondary,
+            activeBgTint: AppColors.surfaceContainer,
+            badgeBgColor: AppColors.statusPendingPaymentBg,
+            badgeTextColor: AppColors.statusPendingPaymentFg,
+          ),
       ],
+    );
+  }
+
+  Widget _buildSingleOfferingSummary(
+    BuildContext context,
+    OfferingModel offering,
+  ) {
+    final isOnline = offering.visitMode == VisitModeType.onlineChat;
+    return _buildVisitModeCard(
+      context,
+      offering: offering,
+      isSelected: true,
+      icon: isOnline ? Icons.forum_rounded : Icons.apartment_rounded,
+      activeColor: isOnline ? AppColors.secondary : AppColors.primary500,
+      activeBgTint: isOnline ? AppColors.surfaceContainer : AppColors.primary50,
+      badgeBgColor: isOnline
+          ? AppColors.statusPendingPaymentBg
+          : AppColors.primary500.withOpacity(0.12),
+      badgeTextColor: isOnline
+          ? AppColors.statusPendingPaymentFg
+          : AppColors.primary500,
     );
   }
 
   Widget _buildVisitModeCard(
     BuildContext context, {
-    required _OfferingItemModel offering,
+    required OfferingModel offering,
+    required bool isSelected,
     required IconData icon,
     required Color activeColor,
     required Color activeBgTint,
@@ -676,7 +696,6 @@ class _DoctorProfileBookingScreenState
     required Color badgeTextColor,
   }) {
     final textTheme = Theme.of(context).textTheme;
-    final bool isSelected = _selectedVisitMode == offering.visitMode;
 
     return Material(
       color: isSelected
@@ -686,10 +705,18 @@ class _DoctorProfileBookingScreenState
       child: InkWell(
         borderRadius: BorderRadius.circular(16.r),
         onTap: () {
+          if (isSelected) return;
           HapticFeedback.selectionClick();
           setState(() {
-            _selectedVisitMode = offering.visitMode;
+            _selectedSlotStartAt = null;
           });
+          final activeDay = _upcomingDays[_selectedDateIndex];
+          _bookingBloc.add(
+            SelectVisitModeOfferingEvent(
+              offering: offering,
+              date: activeDay.gregorianDate,
+            ),
+          );
         },
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
@@ -762,7 +789,7 @@ class _DoctorProfileBookingScreenState
                         ),
                         SizedBox(height: 4.h),
                         Text(
-                          offering.subtitle,
+                          offering.displaySubtitle,
                           style: textTheme.bodySmall?.copyWith(
                             color: AppColors.onSurfaceVariant,
                           ),
@@ -810,7 +837,7 @@ class _DoctorProfileBookingScreenState
                         ),
                         SizedBox(width: 5.w),
                         Text(
-                          'مدت زمان ویزیت: ${_toPersianDigits(offering.durationMinutes.toString())} دقیقه',
+                          'مدت زمان ویزیت: ${toPersianDigits(offering.durationMinutes.toString())} دقیقه',
                           style: textTheme.titleSmall?.copyWith(
                             color: AppColors.onSurfaceVariant,
                           ),
@@ -849,12 +876,16 @@ class _DoctorProfileBookingScreenState
   }
 
   // ---------------------------------------------------------------------------
-  // باکس جزئیات اختصاصی هر نوع ویزیت (آدرس مطب برای حضوری / قوانین چت برای آنلاین)
+  // باکس جزئیات اختصاصی هر نوع ویزیت
   // ---------------------------------------------------------------------------
-  Widget _buildVisitModeContextBox(BuildContext context) {
+  Widget _buildVisitModeContextBox(
+    BuildContext context, {
+    required ProviderProfileModel provider,
+    required OfferingModel offering,
+  }) {
     final textTheme = Theme.of(context).textTheme;
 
-    if (_selectedVisitMode == VisitModeType.inPerson) {
+    if (offering.visitMode == VisitModeType.inPerson) {
       return Container(
         padding: EdgeInsets.all(14.r),
         decoration: BoxDecoration(
@@ -885,7 +916,7 @@ class _DoctorProfileBookingScreenState
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'کلینیک تخصصی قلب تهران (شعبه ونک)',
+                    provider.clinicDisplayTitle,
                     style: textTheme.titleMedium?.copyWith(
                       fontSize: 13.sp,
                       fontWeight: FontWeight.w700,
@@ -894,7 +925,7 @@ class _DoctorProfileBookingScreenState
                   ),
                   SizedBox(height: 3.h),
                   Text(
-                    'تهران، خیابان ولیعصر، بالاتر از میدان ونک، برج نگار، طبقه ۵، واحد ۱۲',
+                    provider.clinicAddressDisplay,
                     style: textTheme.bodySmall?.copyWith(
                       color: AppColors.onSurfaceVariant,
                       height: 1.5,
@@ -903,41 +934,11 @@ class _DoctorProfileBookingScreenState
                 ],
               ),
             ),
-            SizedBox(width: 8.w),
-            InkWell(
-              borderRadius: BorderRadius.circular(8.r),
-              onTap: () {},
-              child: Container(
-                padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 6.h),
-                decoration: BoxDecoration(
-                  color: AppColors.surfaceContainerLow,
-                  borderRadius: BorderRadius.circular(8.r),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      'مسیریابی',
-                      style: textTheme.titleSmall?.copyWith(
-                        color: AppColors.primary500,
-                      ),
-                    ),
-                    SizedBox(width: 4.w),
-                    Icon(
-                      Icons.near_me_rounded,
-                      size: 14.r,
-                      color: AppColors.primary500,
-                    ),
-                  ],
-                ),
-              ),
-            ),
           ],
         ),
       );
     }
 
-    // حالت مشاوره آنلاین متنی و صوتی (توضیح قوانین بازه زمانی چت طبق پرامپت)
     return Container(
       padding: EdgeInsets.all(14.r),
       decoration: BoxDecoration(
@@ -992,9 +993,12 @@ class _DoctorProfileBookingScreenState
   }
 
   // ---------------------------------------------------------------------------
-  // ۳. تقویم شمسی افقی (Horizontal Jalali Date Picker)
+  // ۳. تقویم شمسی افقی
   // ---------------------------------------------------------------------------
-  Widget _buildJalaliCalendarSection(BuildContext context) {
+  Widget _buildJalaliCalendarSection(
+    BuildContext context,
+    DoctorBookingLoadedState state,
+  ) {
     final textTheme = Theme.of(context).textTheme;
     final activeDay = _upcomingDays[_selectedDateIndex];
 
@@ -1049,109 +1053,75 @@ class _DoctorProfileBookingScreenState
               final bool isSelected = _selectedDateIndex == index;
 
               return GestureDetector(
-                onTap: day.isDisabled
-                    ? null
-                    : () {
-                        HapticFeedback.selectionClick();
-                        setState(() {
-                          _selectedDateIndex = index;
-                        });
-                        // فراخوانی API دریافت اسلات‌های تاریخ جدید:
-                        // GET /api/v1/availability/slots/?provider_id=...&offering_id=${_currentOffering.id}&date=${day.gregorianDate}
-                      },
-                child: Opacity(
-                  opacity: day.isDisabled ? 0.5 : 1.0,
-                  child: Stack(
-                    clipBehavior: Clip.none,
-                    alignment: Alignment.topCenter,
+                onTap: () {
+                  if (isSelected) return;
+                  HapticFeedback.selectionClick();
+                  setState(() {
+                    _selectedDateIndex = index;
+                    _selectedSlotStartAt = null;
+                  });
+                  _bookingBloc.add(
+                    SelectBookingDateEvent(date: day.gregorianDate),
+                  );
+                },
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  width: 76.w,
+                  padding: EdgeInsets.symmetric(vertical: 10.h),
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? AppColors.primary500
+                        : AppColors.surfaceContainerLowest,
+                    borderRadius: BorderRadius.circular(16.r),
+                    border: Border.all(
+                      color: isSelected
+                          ? AppColors.primary500
+                          : AppColors.text200Light,
+                    ),
+                    boxShadow: isSelected
+                        ? [
+                            BoxShadow(
+                              color: AppColors.primary500.withOpacity(0.25),
+                              blurRadius: 8,
+                              offset: const Offset(0, 3),
+                            ),
+                          ]
+                        : null,
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      AnimatedContainer(
-                        duration: const Duration(milliseconds: 200),
-                        width: 76.w,
-                        padding: EdgeInsets.symmetric(vertical: 10.h),
-                        decoration: BoxDecoration(
+                      Text(
+                        day.topLabel,
+                        style: textTheme.titleSmall?.copyWith(
+                          fontSize: 10.5.sp,
                           color: isSelected
-                              ? AppColors.primary500
-                              : (day.isDisabled
-                                    ? AppColors.surfaceContainer
-                                    : AppColors.surfaceContainerLowest),
-                          borderRadius: BorderRadius.circular(16.r),
-                          border: Border.all(
-                            color: isSelected
-                                ? AppColors.primary500
-                                : AppColors.text200Light,
-                          ),
-                          boxShadow: isSelected
-                              ? [
-                                  BoxShadow(
-                                    color: AppColors.primary500.withOpacity(
-                                      0.25,
-                                    ),
-                                    blurRadius: 8,
-                                    offset: const Offset(0, 3),
-                                  ),
-                                ]
-                              : null,
-                        ),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              day.topLabel,
-                              style: textTheme.titleSmall?.copyWith(
-                                fontSize: 10.5.sp,
-                                color: isSelected
-                                    ? Colors.white.withOpacity(0.9)
-                                    : AppColors.onSurfaceVariant,
-                              ),
-                            ),
-                            SizedBox(height: 2.h),
-                            Text(
-                              day.dayNumber,
-                              style: textTheme.bodyLarge?.copyWith(
-                                fontSize: 22.sp,
-                                fontWeight: FontWeight.w700,
-                                height: 1.2,
-                                color: isSelected
-                                    ? Colors.white
-                                    : AppColors.onSurface,
-                              ),
-                            ),
-                            SizedBox(height: 2.h),
-                            Text(
-                              day.weekDayName,
-                              style: textTheme.titleSmall?.copyWith(
-                                fontSize: 11.sp,
-                                color: isSelected
-                                    ? Colors.white.withOpacity(0.9)
-                                    : AppColors.onSurfaceVariant,
-                              ),
-                            ),
-                          ],
+                              ? Colors.white.withOpacity(0.9)
+                              : AppColors.onSurfaceVariant,
                         ),
                       ),
-                      if (day.badgeCount != null)
-                        Positioned(
-                          top: -6.h,
-                          child: Container(
-                            padding: EdgeInsets.symmetric(
-                              horizontal: 6.w,
-                              vertical: 1.5.h,
-                            ),
-                            decoration: BoxDecoration(
-                              color: AppColors.green,
-                              borderRadius: BorderRadius.circular(50.r),
-                            ),
-                            child: Text(
-                              day.badgeCount!,
-                              style: TextStyle(
-                                fontSize: 9.5.sp,
-                                fontWeight: FontWeight.w700,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ),
+                      SizedBox(height: 2.h),
+                      Text(
+                        day.dayNumber,
+                        style: textTheme.bodyLarge?.copyWith(
+                          fontSize: 22.sp,
+                          fontWeight: FontWeight.w700,
+                          height: 1.2,
+                          color: isSelected
+                              ? Colors.white
+                              : AppColors.onSurface,
                         ),
+                      ),
+                      SizedBox(height: 2.h),
+                      Text(
+                        day.weekDayName,
+                        style: textTheme.titleSmall?.copyWith(
+                          fontSize: 11.sp,
+                          color: isSelected
+                              ? Colors.white.withOpacity(0.9)
+                              : AppColors.onSurfaceVariant,
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -1164,12 +1134,15 @@ class _DoctorProfileBookingScreenState
   }
 
   // ---------------------------------------------------------------------------
-  // ۴. شبکه ساعت‌های خالی (Time Slots Grid)
+  // ۴. شبکه ساعت‌های خالی (متصل به GET /api/v1/availability/slots/)
   // ---------------------------------------------------------------------------
-  Widget _buildTimeSlotsSection(BuildContext context) {
+  Widget _buildTimeSlotsSection(
+    BuildContext context,
+    DoctorBookingLoadedState state,
+  ) {
     final textTheme = Theme.of(context).textTheme;
     final activeDay = _upcomingDays[_selectedDateIndex];
-    final availableCount = _slots.where((s) => s.isAvailable).length;
+    final slots = state.slots;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1203,8 +1176,6 @@ class _DoctorProfileBookingScreenState
           ],
         ),
         SizedBox(height: 10.h),
-
-        // سربرگ شیفت کاری
         Container(
           padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
           decoration: BoxDecoration(
@@ -1223,7 +1194,7 @@ class _DoctorProfileBookingScreenState
                   ),
                   SizedBox(width: 6.w),
                   Text(
-                    'شیفت بعد از ظهر (۱۶:۰۰ الی ۲۰:۰۰)',
+                    'نوبت‌های آزاد روز انتخابی',
                     style: textTheme.labelMedium?.copyWith(
                       color: AppColors.onSurfaceVariant,
                     ),
@@ -1231,7 +1202,7 @@ class _DoctorProfileBookingScreenState
                 ],
               ),
               Text(
-                '${_toPersianDigits(availableCount.toString())} نوبت باقی‌مانده',
+                '${toPersianDigits(slots.length.toString())} نوبت خالی',
                 style: textTheme.titleSmall?.copyWith(
                   color: AppColors.primary500,
                   fontWeight: FontWeight.w700,
@@ -1242,161 +1213,157 @@ class _DoctorProfileBookingScreenState
         ),
         SizedBox(height: 12.h),
 
-        // شبکه ۳ ستونه ساعت‌ها
-        GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: _slots.length,
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 3,
-            crossAxisSpacing: 10.w,
-            mainAxisSpacing: 10.h,
-            childAspectRatio: 1.85,
-          ),
-          itemBuilder: (context, index) {
-            final slot = _slots[index];
-            final bool isSelected = _selectedSlotId == slot.id;
-
-            return Material(
-              color: !slot.isAvailable
-                  ? AppColors.surfaceContainer.withOpacity(0.65)
-                  : (isSelected
-                        ? AppColors.primary500
-                        : AppColors.surfaceContainerLowest),
+        if (state.isSlotsLoading)
+          Padding(
+            padding: EdgeInsets.symmetric(vertical: 28.h),
+            child: const Center(child: CircularProgressIndicator()),
+          )
+        else if (state.slotsError != null)
+          Container(
+            padding: EdgeInsets.all(16.r),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceContainerLowest,
               borderRadius: BorderRadius.circular(12.r),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(12.r),
-                onTap: !slot.isAvailable
-                    ? null
-                    : () {
-                        HapticFeedback.selectionClick();
-                        setState(() {
-                          _selectedSlotId = slot.id;
-                        });
-                      },
-                child: Container(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(12.r),
-                    border: Border.all(
-                      color: isSelected
-                          ? AppColors.primary100
-                          : AppColors.text200Light,
-                      width: isSelected ? 2 : 1,
-                    ),
-                  ),
-                  alignment: Alignment.center,
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            slot.timeLabel,
-                            style: textTheme.titleMedium?.copyWith(
-                              fontSize: 14.5.sp,
-                              fontWeight: FontWeight.w700,
-                              decoration: !slot.isAvailable
-                                  ? TextDecoration.lineThrough
-                                  : null,
-                              color: !slot.isAvailable
-                                  ? AppColors.outline
-                                  : (isSelected
-                                        ? Colors.white
-                                        : AppColors.onSurface),
-                            ),
-                          ),
-                          if (isSelected) ...[
-                            SizedBox(width: 4.w),
-                            Icon(
-                              Icons.check_circle_rounded,
-                              size: 14.r,
-                              color: Colors.white,
-                            ),
-                          ],
-                        ],
-                      ),
-                      SizedBox(height: 2.h),
-                      Text(
-                        !slot.isAvailable
-                            ? 'رزرو شده'
-                            : (isSelected ? 'انتخاب شما' : 'آزاد'),
-                        style: TextStyle(
-                          fontSize: 10.sp,
-                          fontWeight: FontWeight.w600,
-                          color: !slot.isAvailable
-                              ? AppColors.outline
-                              : (isSelected
-                                    ? Colors.white.withOpacity(0.9)
-                                    : AppColors.green),
-                        ),
-                      ),
-                    ],
+              border: Border.all(color: AppColors.text200Light),
+            ),
+            child: Column(
+              children: [
+                Text(
+                  state.slotsError!,
+                  textAlign: TextAlign.center,
+                  style: textTheme.bodySmall?.copyWith(
+                    color: AppColors.statusCancelledFg,
                   ),
                 ),
-              ),
-            );
-          },
-        ),
-        SizedBox(height: 12.h),
-
-        // راهنمای وضعیت اسلات‌ها (Legend)
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            _buildLegendDot(
-              context,
+                SizedBox(height: 8.h),
+                TextButton.icon(
+                  onPressed: () {
+                    _bookingBloc.add(
+                      SelectBookingDateEvent(date: activeDay.gregorianDate),
+                    );
+                  },
+                  icon: const Icon(Icons.refresh_rounded),
+                  label: const Text('تلاش مجدد'),
+                ),
+              ],
+            ),
+          )
+        else if (slots.isEmpty)
+          Container(
+            padding: EdgeInsets.symmetric(vertical: 28.h, horizontal: 16.w),
+            decoration: BoxDecoration(
               color: AppColors.surfaceContainerLowest,
-              borderColor: AppColors.text200Light,
-              label: 'آزاد',
+              borderRadius: BorderRadius.circular(14.r),
+              border: Border.all(color: AppColors.text200Light),
             ),
-            SizedBox(width: 20.w),
-            _buildLegendDot(
-              context,
-              color: AppColors.primary500,
-              label: 'انتخاب شما',
+            alignment: Alignment.center,
+            child: Column(
+              children: [
+                Icon(
+                  Icons.event_busy_rounded,
+                  size: 28.r,
+                  color: AppColors.outline,
+                ),
+                SizedBox(height: 8.h),
+                Text(
+                  'در این تاریخ نوبت خالی برای پزشک وجود ندارد.',
+                  textAlign: TextAlign.center,
+                  style: textTheme.bodyMedium?.copyWith(
+                    color: AppColors.onSurfaceVariant,
+                  ),
+                ),
+              ],
             ),
-            SizedBox(width: 20.w),
-            _buildLegendDot(
-              context,
-              color: AppColors.surfaceContainer,
-              label: 'تکمیل شده',
+          )
+        else
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: slots.length,
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 3,
+              crossAxisSpacing: 10.w,
+              mainAxisSpacing: 10.h,
+              childAspectRatio: 1.85,
             ),
-          ],
-        ),
-      ],
-    );
-  }
+            itemBuilder: (context, index) {
+              final slot = slots[index];
+              final bool isSelected = _selectedSlotStartAt == slot.rawStartAt;
 
-  Widget _buildLegendDot(
-    BuildContext context, {
-    required Color color,
-    Color? borderColor,
-    required String label,
-  }) {
-    return Row(
-      children: [
-        Container(
-          width: 12.r,
-          height: 12.r,
-          decoration: BoxDecoration(
-            color: color,
-            shape: BoxShape.circle,
-            border: borderColor != null ? Border.all(color: borderColor) : null,
+              return Material(
+                color: isSelected
+                    ? AppColors.primary500
+                    : AppColors.surfaceContainerLowest,
+                borderRadius: BorderRadius.circular(12.r),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(12.r),
+                  onTap: () {
+                    HapticFeedback.selectionClick();
+                    setState(() {
+                      _selectedSlotStartAt = slot.rawStartAt;
+                    });
+                  },
+                  child: Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12.r),
+                      border: Border.all(
+                        color: isSelected
+                            ? AppColors.primary100
+                            : AppColors.text200Light,
+                        width: isSelected ? 2 : 1,
+                      ),
+                    ),
+                    alignment: Alignment.center,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              slot.timeLabel,
+                              style: textTheme.titleMedium?.copyWith(
+                                fontSize: 14.5.sp,
+                                fontWeight: FontWeight.w700,
+                                color: isSelected
+                                    ? Colors.white
+                                    : AppColors.onSurface,
+                              ),
+                            ),
+                            if (isSelected) ...[
+                              SizedBox(width: 4.w),
+                              Icon(
+                                Icons.check_circle_rounded,
+                                size: 14.r,
+                                color: Colors.white,
+                              ),
+                            ],
+                          ],
+                        ),
+                        SizedBox(height: 2.h),
+                        Text(
+                          isSelected ? 'انتخاب شما' : 'آزاد',
+                          style: TextStyle(
+                            fontSize: 10.sp,
+                            fontWeight: FontWeight.w600,
+                            color: isSelected
+                                ? Colors.white.withOpacity(0.9)
+                                : AppColors.green,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
           ),
-        ),
-        SizedBox(width: 6.w),
-        Text(
-          label,
-          style: Theme.of(context).textTheme.titleSmall
-              ?.copyWith(color: AppColors.onSurfaceVariant),
-        ),
       ],
     );
   }
 
   // ---------------------------------------------------------------------------
-  // فیلد یادداشت یا علائم اولیه بیمار (فیلد notes در مدل Appointment)
+  // ۵. فیلد یادداشت بیمار
   // ---------------------------------------------------------------------------
   Widget _buildPatientNotesField(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
@@ -1424,9 +1391,6 @@ class _DoctorProfileBookingScreenState
     );
   }
 
-  // ---------------------------------------------------------------------------
-  // کارت پشتیبانی ۲۴ ساعته درمان‌یار
-  // ---------------------------------------------------------------------------
   Widget _buildSupportAssuranceCard(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
 
@@ -1481,12 +1445,15 @@ class _DoctorProfileBookingScreenState
   }
 
   // ---------------------------------------------------------------------------
-  // ۵. فوتر چسبان پرداخت و ثبت نهایی نوبت (Sticky Bottom Bar)
+  // ۶. فوتر چسبان ثبت نوبت
   // ---------------------------------------------------------------------------
-  Widget _buildStickyBottomBar(BuildContext context) {
+  Widget _buildStickyBottomBar(
+    BuildContext context, {
+    required ProviderProfileModel provider,
+    required OfferingModel offering,
+    required AvailableSlotModel? selectedSlot,
+  }) {
     final textTheme = Theme.of(context).textTheme;
-    final offering = _currentOffering;
-    final selectedSlot = _selectedSlot;
     final selectedDay = _upcomingDays[_selectedDateIndex];
 
     return Container(
@@ -1509,7 +1476,6 @@ class _DoctorProfileBookingScreenState
             children: [
               Row(
                 children: [
-                  // مبلغ قابل پرداخت
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -1525,7 +1491,8 @@ class _DoctorProfileBookingScreenState
                         textBaseline: TextBaseline.alphabetic,
                         children: [
                           Text(
-                            offering.priceFormatted,
+                            selectedSlot?.priceFormatted ??
+                                offering.priceFormatted,
                             style: textTheme.bodyLarge?.copyWith(
                               fontSize: 20.sp,
                               fontWeight: FontWeight.w700,
@@ -1544,48 +1511,74 @@ class _DoctorProfileBookingScreenState
                     ],
                   ),
                   SizedBox(width: 16.w),
-
-                  // دکمه ثبت نوبت و پرداخت آنلاین (زرین‌پال)
                   Expanded(
-                    child: SizedBox(
-                      height: 48.h,
-                      child: ElevatedButton(
-                        onPressed: selectedSlot == null
-                            ? null
-                            : () => _onSubmitBooking(
-                                context,
-                                offering: offering,
-                                day: selectedDay,
-                                slot: selectedSlot,
-                              ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primary500,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12.r),
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.lock_outline_rounded, size: 18.r),
-                            SizedBox(width: 6.w),
-                            Flexible(
-                              child: Text(
-                                'ثبت نوبت و پرداخت آنلاین',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: textTheme.titleMedium?.copyWith(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w700,
-                                ),
+                    child: BlocBuilder<AppointmentsBloc, AppointmentsState>(
+                      buildWhen: (prev, curr) =>
+                          curr is CreateAppointmentLoadingState ||
+                          curr is CreateAppointmentSuccessState ||
+                          curr is CreateAppointmentFailedState,
+                      builder: (context, submitState) {
+                        final isSubmitting =
+                            submitState is CreateAppointmentLoadingState;
+
+                        return SizedBox(
+                          height: 48.h,
+                          child: ElevatedButton(
+                            onPressed: (selectedSlot == null || isSubmitting)
+                                ? null
+                                : () => _showBookingConfirmationSheet(
+                                    context,
+                                    provider: provider,
+                                    offering: offering,
+                                    day: selectedDay,
+                                    slot: selectedSlot,
+                                  ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.primary500,
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12.r),
                               ),
                             ),
-                            SizedBox(width: 6.w),
-                            Icon(Icons.arrow_back_rounded, size: 18.r),
-                          ],
-                        ),
-                      ),
+                            child: isSubmitting
+                                ? SizedBox(
+                                    width: 22.r,
+                                    height: 22.r,
+                                    child: const CircularProgressIndicator(
+                                      strokeWidth: 2.2,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                : Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(
+                                        Icons.lock_outline_rounded,
+                                        size: 18.r,
+                                      ),
+                                      SizedBox(width: 6.w),
+                                      Flexible(
+                                        child: Text(
+                                          'ثبت نوبت',
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: textTheme.titleMedium
+                                              ?.copyWith(
+                                                color: Colors.white,
+                                                fontWeight: FontWeight.w700,
+                                              ),
+                                        ),
+                                      ),
+                                      SizedBox(width: 6.w),
+                                      Icon(
+                                        Icons.arrow_back_rounded,
+                                        size: 18.r,
+                                      ),
+                                    ],
+                                  ),
+                          ),
+                        );
+                      },
                     ),
                   ),
                 ],
@@ -1603,7 +1596,7 @@ class _DoctorProfileBookingScreenState
                   Flexible(
                     child: Text(
                       selectedSlot != null
-                          ? 'رزرو برای ${selectedDay.fullDisplayTitle} ساعت ${selectedSlot.timeLabel} • درگاه امن زرین‌پال'
+                          ? 'رزرو برای ${selectedDay.fullDisplayTitle} ساعت ${selectedSlot.timeLabel}'
                           : 'لطفاً یک ساعت خالی را برای ادامه انتخاب کنید',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -1623,23 +1616,19 @@ class _DoctorProfileBookingScreenState
   }
 
   // ---------------------------------------------------------------------------
-  // متد ثبت نهایی نوبت (POST /api/v1/appointments/ و هدایت به زرین‌پال)
+  // باتم‌شیت تأیید نهایی و انتخاب روش پرداخت (آنلاین یا در مطب برای حضوری)
   // ---------------------------------------------------------------------------
-  void _onSubmitBooking(
+  void _showBookingConfirmationSheet(
     BuildContext context, {
-    required _OfferingItemModel offering,
+    required ProviderProfileModel provider,
+    required OfferingModel offering,
     required _JalaliDayItem day,
-    required _TimeSlotItem slot,
+    required AvailableSlotModel slot,
   }) {
-    // نمونه Payload ارسالی به POST /api/v1/appointments/
-    final Map<String, dynamic> appointmentPayload = {
-      'provider_id': widget.providerId ?? 'provider-uuid',
-      'offering_id': offering.id,
-      'visit_mode': offering.visitMode.apiValue, // in_person | online_chat
-      'date': day.gregorianDate,
-      'slot_time': slot.timeLabel,
-      'notes': _notesController.text.trim(),
-    };
+    final bool isOnlineVisit = offering.visitMode == VisitModeType.onlineChat;
+    if (isOnlineVisit) {
+      _selectedInPersonPaymentMethod = PaymentMethodType.online;
+    }
 
     showModalBottomSheet(
       context: context,
@@ -1648,72 +1637,173 @@ class _DoctorProfileBookingScreenState
         borderRadius: BorderRadius.vertical(top: Radius.circular(20.r)),
       ),
       builder: (ctx) {
-        return Directionality(
-          textDirection: TextDirection.rtl,
-          child: Padding(
-            padding: EdgeInsets.all(20.r),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  'تأیید اطلاعات و انتقال به درگاه زرین‌پال',
-                  style: Theme.of(context).textTheme.headlineMedium
-                      ?.copyWith(fontWeight: FontWeight.w700),
+        return StatefulBuilder(
+          builder: (ctx, setSheetState) {
+            final effectiveMethod = isOnlineVisit
+                ? PaymentMethodType.online
+                : _selectedInPersonPaymentMethod;
+
+            return Directionality(
+              textDirection: TextDirection.rtl,
+              child: Padding(
+                padding: EdgeInsets.all(20.r),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      'تأیید اطلاعات نوبت',
+                      style: Theme.of(context).textTheme.headlineMedium
+                          ?.copyWith(fontWeight: FontWeight.w700),
+                    ),
+                    SizedBox(height: 12.h),
+                    Text(
+                      '• پزشک: ${provider.displayName}\n'
+                      '• نوع نوبت: ${offering.title}\n'
+                      '• تاریخ: ${day.fullDisplayTitle}\n'
+                      '• ساعت: ${slot.timeLabel}\n'
+                      '• مبلغ قابل پرداخت: ${slot.priceFormatted} تومان',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: AppColors.onSurfaceVariant,
+                        height: 1.8,
+                      ),
+                    ),
+                    if (!isOnlineVisit) ...[
+                      SizedBox(height: 14.h),
+                      Text(
+                        'انتخاب روش پرداخت:',
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w700),
+                      ),
+                      SizedBox(height: 8.h),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildPaymentMethodOption(
+                              context,
+                              title: 'پرداخت آنلاین',
+                              icon: Icons.credit_card_rounded,
+                              isSelected:
+                                  effectiveMethod == PaymentMethodType.online,
+                              onTap: () {
+                                setSheetState(() {
+                                  _selectedInPersonPaymentMethod =
+                                      PaymentMethodType.online;
+                                });
+                              },
+                            ),
+                          ),
+                          SizedBox(width: 10.w),
+                          Expanded(
+                            child: _buildPaymentMethodOption(
+                              context,
+                              title: 'پرداخت در مطب',
+                              icon: Icons.payments_outlined,
+                              isSelected:
+                                  effectiveMethod == PaymentMethodType.inPerson,
+                              onTap: () {
+                                setSheetState(() {
+                                  _selectedInPersonPaymentMethod =
+                                      PaymentMethodType.inPerson;
+                                });
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                    SizedBox(height: 18.h),
+                    SizedBox(
+                      height: 48.h,
+                      child: ElevatedButton(
+                        onPressed: () {
+                          Navigator.pop(ctx);
+                          _submitBloc.add(
+                            CreateAppointmentBookingEvent(
+                              providerId: provider.id,
+                              offeringId: offering.id,
+                              startAt: slot.rawStartAt,
+                              paymentMethod: effectiveMethod.apiValue,
+                              notes: _notesController.text.trim(),
+                            ),
+                          );
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary500,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12.r),
+                          ),
+                        ),
+                        child: Text(
+                          effectiveMethod == PaymentMethodType.online
+                              ? 'تأیید و انتقال به درگاه پرداخت'
+                              : 'تأیید و ثبت نهایی نوبت',
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-                SizedBox(height: 12.h),
-                Text(
-                  '• نوع نوبت: ${offering.title}\n'
-                  '• تاریخ: ${day.fullDisplayTitle} (${day.gregorianDate})\n'
-                  '• ساعت: ${slot.timeLabel}\n'
-                  '• مبلغ قابل پرداخت: ${offering.priceFormatted} تومان',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppColors.onSurfaceVariant,
-                    height: 1.8,
-                  ),
-                ),
-                SizedBox(height: 16.h),
-                ElevatedButton(
-                  onPressed: () {
-                    Navigator.pop(ctx);
-                    debugPrint('Booking Payload: $appointmentPayload');
-                    // ۱. ارسال درخواست POST /api/v1/appointments/
-                    // ۲. ارسال درخواست POST /api/v1/payments/... و باز کردن لینک زرین‌پال
-                  },
-                  child: const Text('ورود به درگاه پرداخت زرین‌پال'),
-                ),
-              ],
-            ),
-          ),
+              ),
+            );
+          },
         );
       },
     );
   }
-}
 
-// -----------------------------------------------------------------------------
-// مدل‌های داده داخلی صفحه رزرو نوبت
-// -----------------------------------------------------------------------------
-class _OfferingItemModel {
-  final String id;
-  final String title;
-  final String subtitle;
-  final String badgeText;
-  final int durationMinutes;
-  final String priceFormatted;
-  final int priceValue;
-  final VisitModeType visitMode;
-
-  const _OfferingItemModel({
-    required this.id,
-    required this.title,
-    required this.subtitle,
-    required this.badgeText,
-    required this.durationMinutes,
-    required this.priceFormatted,
-    required this.priceValue,
-    required this.visitMode,
-  });
+  Widget _buildPaymentMethodOption(
+    BuildContext context, {
+    required String title,
+    required IconData icon,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    final textTheme = Theme.of(context).textTheme;
+    return InkWell(
+      borderRadius: BorderRadius.circular(12.r),
+      onTap: onTap,
+      child: Container(
+        padding: EdgeInsets.symmetric(vertical: 12.h, horizontal: 10.w),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? AppColors.primary50
+              : AppColors.surfaceContainerLow,
+          borderRadius: BorderRadius.circular(12.r),
+          border: Border.all(
+            color: isSelected ? AppColors.primary500 : AppColors.text200Light,
+            width: isSelected ? 1.5 : 1.0,
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              size: 18.r,
+              color: isSelected
+                  ? AppColors.primary500
+                  : AppColors.onSurfaceVariant,
+            ),
+            SizedBox(width: 6.w),
+            Flexible(
+              child: Text(
+                title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: textTheme.labelMedium?.copyWith(
+                  color: isSelected
+                      ? AppColors.primary500
+                      : AppColors.onSurface,
+                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _JalaliDayItem {
@@ -1722,9 +1812,7 @@ class _JalaliDayItem {
   final String weekDayName;
   final String fullDisplayTitle;
   final String monthYearTitle;
-  final String gregorianDate; // YYYY-MM-DD برای ارسال به بک‌اند
-  final bool isDisabled;
-  final String? badgeCount;
+  final String gregorianDate;
 
   const _JalaliDayItem({
     required this.topLabel,
@@ -1733,19 +1821,5 @@ class _JalaliDayItem {
     required this.fullDisplayTitle,
     required this.monthYearTitle,
     required this.gregorianDate,
-    this.isDisabled = false,
-    this.badgeCount,
-  });
-}
-
-class _TimeSlotItem {
-  final String id;
-  final String timeLabel;
-  final bool isAvailable;
-
-  const _TimeSlotItem({
-    required this.id,
-    required this.timeLabel,
-    required this.isAvailable,
   });
 }

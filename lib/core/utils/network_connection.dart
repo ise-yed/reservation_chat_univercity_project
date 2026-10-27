@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
 
@@ -15,32 +16,33 @@ class NetworkManager {
   static Future<bool> hasInternetConnection({
     Duration timeout = const Duration(seconds: 2),
   }) async {
-    final status = await _connectivity.checkConnectivity();
-    if (status == ConnectivityResult.none) return false;
+    // final status = await _connectivity.checkConnectivity();
+    // if (status == ConnectivityResult.none) return false;
 
-    if (kIsWeb) return true;
+    // if (kIsWeb) return true;
 
-    Future<bool> probe(String host) async {
-      try {
-        final s = await Socket.connect(host, 53, timeout: timeout);
-        s.destroy();
-        return true;
-      } catch (_) {
-        return false;
-      }
-    }
+    // Future<bool> probe(String host) async {
+    //   try {
+    //     final s = await Socket.connect(host, 53, timeout: timeout);
+    //     s.destroy();
+    //     return true;
+    //   } catch (_) {
+    //     return false;
+    //   }
+    // }
 
-    if (await probe('1.1.1.1')) return true;
-    if (await probe('8.8.8.8')) return true;
+    // if (await probe('1.1.1.1')) return true;
+    // if (await probe('8.8.8.8')) return true;
 
-    try {
-      final lookup = await InternetAddress.lookup(
-        'example.com',
-      ).timeout(timeout);
-      return lookup.isNotEmpty && lookup.first.rawAddress.isNotEmpty;
-    } on Exception {
-      return false;
-    }
+    // try {
+    //   final lookup = await InternetAddress.lookup(
+    //     'example.com',
+    //   ).timeout(timeout);
+    //   return lookup.isNotEmpty && lookup.first.rawAddress.isNotEmpty;
+    // } on Exception {
+    //   return false;
+    // }
+    return true;
   }
 
   static void _startMonitoring() {

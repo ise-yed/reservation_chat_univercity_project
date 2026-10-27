@@ -1,38 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:reservation_chat_univercity_project/core/constants/app_setting.dart';
 import 'package:reservation_chat_univercity_project/core/themes/app_colors.dart';
 import 'package:reservation_chat_univercity_project/core/utils/navigator.dart';
-import 'package:reservation_chat_univercity_project/core/widgets/app_cached_image.dart';
+import 'package:reservation_chat_univercity_project/core/widgets/global_error_section.dart';
+import 'package:reservation_chat_univercity_project/core/widgets/global_loading_section.dart';
+import 'package:reservation_chat_univercity_project/features/appointments/bloc/appointments_bloc.dart';
+import 'package:reservation_chat_univercity_project/features/appointments/screens/payment_gateway_screen.dart';
+import 'package:reservation_chat_univercity_project/features/appointments/service/model/appointment_models.dart';
 import 'package:reservation_chat_univercity_project/features/profile/screens/notification_screen.dart';
 
-/// نقش نمایشی صفحه (بیمار یا پزشک)
-enum AppointmentViewRole { patient, doctor }
-
-/// تب‌های وضعیت نوبت
 enum AppointmentFilterTab { upcoming, completed, cancelled }
-
-/// نوع ویزیت مطابق بک‌اند جنگو (apps/offerings/enums.py)
-enum AppointmentVisitMode {
-  inPerson('in_person'),
-  onlineChat('online_chat');
-
-  final String value;
-  const AppointmentVisitMode(this.value);
-}
-
-/// وضعیت نوبت مطابق بک‌اند جنگو (apps/appointments/enums.py)
-enum AppointmentStatusType {
-  pending('pending'),
-  confirmed('confirmed'),
-  completed('completed'),
-  cancelledByCustomer('cancelled_by_customer'),
-  cancelledByProvider('cancelled_by_provider');
-
-  final String value;
-  const AppointmentStatusType(this.value);
-}
 
 class AppointmentsScreen extends StatefulWidget {
   const AppointmentsScreen({super.key});
@@ -43,131 +23,14 @@ class AppointmentsScreen extends StatefulWidget {
 
 class _AppointmentsScreenState extends State<AppointmentsScreen>
     with SingleTickerProviderStateMixin {
-  AppointmentViewRole _currentRole = AppointmentViewRole.patient;
   AppointmentFilterTab _currentTab = AppointmentFilterTab.upcoming;
   late final AnimationController _pulseController;
+  late final AppointmentsBloc _bloc;
 
-  // لیست نمونه نوبت‌های بیمار (معادل پاسخ GET /api/v1/appointments/my/)
-  final List<_AppointmentItemModel> _patientAppointments = [
-    _AppointmentItemModel(
-      id: 'DRM-8492',
-      counterpartName: 'دکتر علیرضا رادمنش',
-      counterpartSubtitle: 'فوق تخصص بیماری‌های قلب و عروق',
-      avatarUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBvpZ_vboIDyEPGzaUNxfTYRZ_jibLqgSreBTJldnpDHPZmAs5n_J_qaFIHt-fmwzrw3wdyulY-gq1_Y-0v0sH-uk4CEf6OCK8sancGyH4yqWzgVSzvmxAoc95w5xDfQSQBZqKbR6PkU01yT5lEIVyrHmpxqzieFqxOhxHpyAfVk0PWcdYNMRVOpHOnRZm7lrqZmuwV-75vE4mdxEiSK8UwZiq3RM7UyjOPxEwBU-DrvajgL2StBRdq',
-      visitMode: AppointmentVisitMode.onlineChat,
-      status: AppointmentStatusType.confirmed,
-      jalaliDateText: 'امروز، ۲۵ مهر ۱۴۰۵',
-      timeRangeText: '۱۶:۳۰ الی ۱۷:۱۵',
-      isCurrentlyInProgress: true, // در بازه start_at <= now < end_at قرار دارد
-      hasStarted: true,
-      conversationId: 'conv-101',
-      priceText: '۱۹۰,۰۰۰ تومان',
-      notes: 'تپش قلب و سابقه افت فشار خون',
-    ),
-    _AppointmentItemModel(
-      id: 'DRM-5531',
-      counterpartName: 'دکتر مریم کاظمی',
-      counterpartSubtitle: 'متخصص پوست، مو و زیبایی',
-      avatarUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCHgNQkO27RC_GyQick4qbpIIBhxrC5MX3j01_KSLE7DwGY6G6zRWgb3Mz2b7Gl6s-rGahAY25gQT75x__1vcnUeHm9Vgs69gwh0CgLCgG4IgneK-OQPw-ntWvWOK6I8tmYN6CVqBGq5Ms74wCGIve1EAe3xI1R3UoYNDZrMpwU-KxTSAUJDRX7tAN6m249P6h7zJ5gMTRR9G30kK6Cw8dCdQ9UqJuK2sKyiD6lWnGC7cVZf_i3RFAg',
-      visitMode: AppointmentVisitMode.inPerson,
-      status: AppointmentStatusType.confirmed,
-      jalaliDateText: 'دوشنبه، ۲۷ مهر ۱۴۰۵',
-      timeRangeText: '۱۸:۳۰ الی ۱۹:۰۰',
-      isCurrentlyInProgress: false,
-      hasStarted: false, // هنوز شروع نشده، پس بیمار می‌تواند لغو کند
-      clinicAddress: 'تهران، میدان ونک، خیابان ولیعصر، برج نگار، طبقه ۵',
-      priceText: '۲۸۰,۰۰۰ تومان',
-    ),
-    _AppointmentItemModel(
-      id: 'DRM-3104',
-      counterpartName: 'دکتر علیرضا رادمنش',
-      counterpartSubtitle: 'فوق تخصص بیماری‌های قلب و عروق',
-      avatarUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBvpZ_vboIDyEPGzaUNxfTYRZ_jibLqgSreBTJldnpDHPZmAs5n_J_qaFIHt-fmwzrw3wdyulY-gq1_Y-0v0sH-uk4CEf6OCK8sancGyH4yqWzgVSzvmxAoc95w5xDfQSQBZqKbR6PkU01yT5lEIVyrHmpxqzieFqxOhxHpyAfVk0PWcdYNMRVOpHOnRZm7lrqZmuwV-75vE4mdxEiSK8UwZiq3RM7UyjOPxEwBU-DrvajgL2StBRdq',
-      visitMode: AppointmentVisitMode.onlineChat,
-      status: AppointmentStatusType.completed,
-      jalaliDateText: '۱۰ مهر ۱۴۰۵',
-      timeRangeText: '۱۷:۰۰ الی ۱۷:۳۰',
-      isCurrentlyInProgress: false,
-      hasStarted: true,
-      conversationId: 'conv-101',
-      priceText: '۱۹۰,۰۰۰ تومان',
-      notes: 'بررسی اولیه نوار قلب و تجویز آزمایش خون',
-    ),
-    _AppointmentItemModel(
-      id: 'DRM-1920',
-      counterpartName: 'دکتر کامران بهرامی',
-      counterpartSubtitle: 'جراح مغز و اعصاب و ستون فقرات',
-      visitMode: AppointmentVisitMode.inPerson,
-      status: AppointmentStatusType.cancelledByCustomer,
-      jalaliDateText: '۲ مهر ۱۴۰۵',
-      timeRangeText: '۱۶:۱۵ الی ۱۶:۴۵',
-      isCurrentlyInProgress: false,
-      hasStarted: true,
-      cancelReason: 'تداخل با سفر کاری',
-      priceText: '۳۲۰,۰۰۰ تومان',
-    ),
-  ];
+  List<AppointmentModel> _appointments = const [];
+  String? _loadingTargetId;
 
-  // لیست نمونه نوبت‌های پزشک (معادل پاسخ GET /api/v1/appointments/providers/{provider_id}/)
-  final List<_AppointmentItemModel> _doctorAppointments = [
-    _AppointmentItemModel(
-      id: 'PT-1042',
-      counterpartName: 'سارا احمدی',
-      counterpartSubtitle: 'بیمار • پرونده فعال',
-      visitMode: AppointmentVisitMode.onlineChat,
-      status: AppointmentStatusType.confirmed,
-      jalaliDateText: 'امروز، ۲۵ مهر ۱۴۰۵',
-      timeRangeText: '۱۶:۳۰ الی ۱۷:۱۵',
-      isCurrentlyInProgress:
-          true, // نوبت آنلاین در جریان (امکان خاتمه دستی توسط پزشک)
-      hasStarted: true,
-      conversationId: 'conv-101',
-      notes: 'علائم: تپش قلب و سابقه افت فشار خون از هفته گذشته',
-      priceText: '۱۹۰,۰۰۰ تومان',
-    ),
-    _AppointmentItemModel(
-      id: 'PT-1089',
-      counterpartName: 'محمد کریمی',
-      counterpartSubtitle: 'بیمار • نوبت بعدی امروز',
-      visitMode: AppointmentVisitMode.onlineChat,
-      status: AppointmentStatusType.confirmed,
-      jalaliDateText: 'امروز، ۲۵ مهر ۱۴۰۵',
-      timeRangeText: '۱۷:۳۰ الی ۱۸:۰۰',
-      isCurrentlyInProgress: false,
-      hasStarted: false, // هنوز شروع نشده
-      conversationId: 'conv-102',
-      notes: 'ارسال جواب آزمایش چربی و قند خون جهت بررسی مجدد',
-      priceText: '۱۹۰,۰۰۰ تومان',
-    ),
-    _AppointmentItemModel(
-      id: 'PT-1105',
-      counterpartName: 'زهرا محمدی',
-      counterpartSubtitle: 'بیمار • مراجعه اول',
-      visitMode: AppointmentVisitMode.inPerson,
-      status: AppointmentStatusType.pending,
-      jalaliDateText: 'فردا، ۲۶ مهر ۱۴۰۵',
-      timeRangeText: '۱۸:۰۰ الی ۱۸:۳۰',
-      isCurrentlyInProgress: false,
-      hasStarted: false,
-      clinicAddress: 'شعبه ونک - اتاق معاینه ۲',
-      notes: 'درد قفسه سینه هنگام فعالیت ورزشی',
-      priceText: '۲۸۰,۰۰۰ تومان',
-    ),
-    _AppointmentItemModel(
-      id: 'PT-0988',
-      counterpartName: 'رضا رضایی',
-      counterpartSubtitle: 'بیمار • ویزیت تکمیل‌شده',
-      visitMode: AppointmentVisitMode.onlineChat,
-      status: AppointmentStatusType.completed,
-      jalaliDateText: '۲۳ مهر ۱۴۰۵',
-      timeRangeText: '۱۹:۰۰ الی ۱۹:۳۰',
-      isCurrentlyInProgress: false,
-      hasStarted: true,
-      conversationId: 'conv-103',
-      notes: 'تنظیم دوز داروی فشار خون',
-      priceText: '۱۹۰,۰۰۰ تومان',
-    ),
-  ];
+  bool get _isDoctorView => currentUserModel.role == 'provider';
 
   @override
   void initState() {
@@ -177,27 +40,19 @@ class _AppointmentsScreenState extends State<AppointmentsScreen>
       duration: const Duration(milliseconds: 900),
     )..repeat(reverse: true);
 
-    // اگر کاربر لاگین‌شده در سیستم نقش provider داشته باشد، پیش‌فرض روی نمای پزشک برود
-    if (currentUserModel.role == 'provider') {
-      _currentRole = AppointmentViewRole.doctor;
-    }
+    _bloc = AppointmentsBloc()
+      ..add(FetchAppointmentsListEvent(isProviderRole: _isDoctorView));
   }
 
   @override
   void dispose() {
     _pulseController.dispose();
+    _bloc.close();
     super.dispose();
   }
 
-  List<_AppointmentItemModel> get _activeRoleList =>
-      _currentRole == AppointmentViewRole.patient
-      ? _patientAppointments
-      : _doctorAppointments;
-
-  List<_AppointmentItemModel> _getFilteredAppointments(
-    AppointmentFilterTab tab,
-  ) {
-    return _activeRoleList.where((item) {
+  List<AppointmentModel> _getFilteredAppointments(AppointmentFilterTab tab) {
+    return _appointments.where((item) {
       switch (tab) {
         case AppointmentFilterTab.upcoming:
           return item.status == AppointmentStatusType.confirmed ||
@@ -206,69 +61,143 @@ class _AppointmentsScreenState extends State<AppointmentsScreen>
           return item.status == AppointmentStatusType.completed;
         case AppointmentFilterTab.cancelled:
           return item.status == AppointmentStatusType.cancelledByCustomer ||
-              item.status == AppointmentStatusType.cancelledByProvider;
+              item.status == AppointmentStatusType.cancelledByProvider ||
+              item.status == AppointmentStatusType.noShow;
       }
     }).toList();
   }
 
-  String _toPersianDigits(String input) {
-    const english = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
-    const persian = ['۰', '۱', '۲', '۳', '۴', '۵', '۶', '۷', '۸', '۹'];
-    String output = input;
-    for (int i = 0; i < english.length; i++) {
-      output = output.replaceAll(english[i], persian[i]);
-    }
-    return output;
-  }
-
   @override
   Widget build(BuildContext context) {
-    final filteredList = _getFilteredAppointments(_currentTab);
+    return BlocProvider<AppointmentsBloc>.value(
+      value: _bloc,
+      child: Directionality(
+        textDirection: TextDirection.rtl,
+        child: Scaffold(
+          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+          body: Column(
+            children: [
+              _buildTopHeader(context),
+              Expanded(
+                child: BlocConsumer<AppointmentsBloc, AppointmentsState>(
+                  listener: (context, state) async {
+                    if (state is AppointmentsListSuccessState) {
+                      setState(() {
+                        _appointments = state.appointments;
+                        _loadingTargetId = null;
+                      });
+                    } else if (state is AppointmentActionLoadingState) {
+                      setState(() {
+                        _loadingTargetId = state.targetId;
+                      });
+                    } else if (state is AppointmentActionSuccessState) {
+                      setState(() {
+                        _loadingTargetId = null;
+                      });
+                      if (state.payUrl != null && state.payUrl!.isNotEmpty) {
+                        final paid = await Navigator.of(context).push<bool>(
+                          MaterialPageRoute(
+                            builder: (_) => PaymentGatewayScreen(
+                              payUrl: state.payUrl!,
+                              paymentId: state.paymentId,
+                            ),
+                          ),
+                        );
+                        if (paid == true && context.mounted) {
+                          _bloc.add(
+                            FetchAppointmentsListEvent(
+                              isProviderRole: _isDoctorView,
+                            ),
+                          );
+                        }
+                      } else {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            behavior: SnackBarBehavior.floating,
+                            backgroundColor: AppColors.green,
+                            content: Text(state.message),
+                          ),
+                        );
+                      }
+                    } else if (state is AppointmentActionFailedState) {
+                      setState(() {
+                        _loadingTargetId = null;
+                      });
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          behavior: SnackBarBehavior.floating,
+                          backgroundColor: AppColors.statusCancelledFg,
+                          content: Text(state.message),
+                        ),
+                      );
+                    }
+                  },
+                  builder: (context, state) {
+                    if (state is AppointmentsListLoadingState &&
+                        _appointments.isEmpty) {
+                      return GlobalLoadingSection();
+                    }
 
-    return Directionality(
-      textDirection: TextDirection.rtl,
-      child: Scaffold(
-        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-        body: Column(
-          children: [
-            // هدر بالای صفحه
-            _buildTopHeader(context),
-
-            // بدنه اصلی
-            Expanded(
-              child: SingleChildScrollView(
-                physics: const BouncingScrollPhysics(),
-                padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 100.h),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // سوییچر تغییر نمای بیمار / نمای پزشک
-                    _buildRoleSwitcher(context),
-                    SizedBox(height: 16.h),
-
-                    //۱. تب‌بندی بالای صفحه (پیش‌رو، تکمیل‌شده، لغوشده)
-                    _buildStatusTabs(context),
-                    SizedBox(height: 18.h),
-
-                    // ۲. لیست کارت‌های نوبت
-                    if (filteredList.isEmpty)
-                      _buildEmptyState(context)
-                    else
-                      ListView.separated(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        itemCount: filteredList.length,
-                        separatorBuilder: (_, __) => SizedBox(height: 14.h),
-                        itemBuilder: (context, index) {
-                          final item = filteredList[index];
-                          return _buildAppointmentCard(context, item);
+                    if (state is AppointmentsListFailedState &&
+                        _appointments.isEmpty) {
+                      return GlobalErrorSection(
+                        message: state.message,
+                        onRetry: () {
+                          _bloc.add(
+                            FetchAppointmentsListEvent(
+                              isProviderRole: _isDoctorView,
+                            ),
+                          );
                         },
+                      );
+                    }
+
+                    final filteredList = _getFilteredAppointments(_currentTab);
+
+                    return RefreshIndicator(
+                      onRefresh: () async {
+                        _bloc.add(
+                          FetchAppointmentsListEvent(
+                            isProviderRole: _isDoctorView,
+                          ),
+                        );
+                      },
+                      child: SingleChildScrollView(
+                        physics: const AlwaysScrollableScrollPhysics(
+                          parent: BouncingScrollPhysics(),
+                        ),
+                        padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 100.h),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            // ۱. تب‌بندی وضعیت نوبت‌ها (بدون سوییچر نقش؛ هر کاربر فقط نقش خودش را می‌بیند)
+                            _buildStatusTabs(context),
+                            SizedBox(height: 18.h),
+
+                            // ۲. لیست کارت‌های نوبت
+                            if (filteredList.isEmpty)
+                              _buildEmptyState(context)
+                            else
+                              ListView.separated(
+                                shrinkWrap: true,
+                                physics: const NeverScrollableScrollPhysics(),
+                                itemCount: filteredList.length,
+                                separatorBuilder: (_, __) =>
+                                    SizedBox(height: 14.h),
+                                itemBuilder: (context, index) {
+                                  final item = filteredList[index];
+                                  return _buildAppointmentCard(context, item);
+                                },
+                              ),
+                          ],
+                        ),
                       ),
-                  ],
+                    );
+                  },
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -317,7 +246,7 @@ class _AppointmentsScreenState extends State<AppointmentsScreen>
                   ),
                   SizedBox(width: 10.w),
                   Text(
-                    'مدیریت نوبت‌ها',
+                    _isDoctorView ? 'مدیریت نوبت‌های بیماران' : 'نوبت‌های من',
                     style: textTheme.headlineMedium?.copyWith(
                       fontSize: 17.sp,
                       fontWeight: FontWeight.w700,
@@ -344,128 +273,6 @@ class _AppointmentsScreenState extends State<AppointmentsScreen>
             ],
           ),
         ),
-      ),
-    );
-  }
-
-  // ---------------------------------------------------------------------------
-  // سوییچر نمای دوگانه: نمای بیمار / نمای پزشک
-  // ---------------------------------------------------------------------------
-  Widget _buildRoleSwitcher(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    final bool isPatient = _currentRole == AppointmentViewRole.patient;
-
-    return Container(
-      padding: EdgeInsets.all(4.r),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceContainer,
-        borderRadius: BorderRadius.circular(50.r),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: GestureDetector(
-              onTap: () {
-                if (isPatient) return;
-                HapticFeedback.selectionClick();
-                setState(() {
-                  _currentRole = AppointmentViewRole.patient;
-                });
-              },
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 220),
-                padding: EdgeInsets.symmetric(vertical: 10.h),
-                decoration: BoxDecoration(
-                  color: isPatient ? AppColors.primary500 : Colors.transparent,
-                  borderRadius: BorderRadius.circular(50.r),
-                  boxShadow: isPatient
-                      ? [
-                          BoxShadow(
-                            color: AppColors.primary500.withOpacity(0.2),
-                            blurRadius: 6,
-                            offset: const Offset(0, 2),
-                          ),
-                        ]
-                      : null,
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.person_outline_rounded,
-                      size: 18.r,
-                      color: isPatient
-                          ? Colors.white
-                          : AppColors.onSurfaceVariant,
-                    ),
-                    SizedBox(width: 6.w),
-                    Text(
-                      'نمای بیمار',
-                      style: textTheme.titleMedium?.copyWith(
-                        fontSize: 13.5.sp,
-                        fontWeight: FontWeight.w700,
-                        color: isPatient
-                            ? Colors.white
-                            : AppColors.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          Expanded(
-            child: GestureDetector(
-              onTap: () {
-                if (!isPatient) return;
-                HapticFeedback.selectionClick();
-                setState(() {
-                  _currentRole = AppointmentViewRole.doctor;
-                });
-              },
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 220),
-                padding: EdgeInsets.symmetric(vertical: 10.h),
-                decoration: BoxDecoration(
-                  color: !isPatient ? AppColors.primary500 : Colors.transparent,
-                  borderRadius: BorderRadius.circular(50.r),
-                  boxShadow: !isPatient
-                      ? [
-                          BoxShadow(
-                            color: AppColors.primary500.withOpacity(0.2),
-                            blurRadius: 6,
-                            offset: const Offset(0, 2),
-                          ),
-                        ]
-                      : null,
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.medical_information_outlined,
-                      size: 18.r,
-                      color: !isPatient
-                          ? Colors.white
-                          : AppColors.onSurfaceVariant,
-                    ),
-                    SizedBox(width: 6.w),
-                    Text(
-                      'نمای پزشک',
-                      style: textTheme.titleMedium?.copyWith(
-                        fontSize: 13.5.sp,
-                        fontWeight: FontWeight.w700,
-                        color: !isPatient
-                            ? Colors.white
-                            : AppColors.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -583,7 +390,7 @@ class _AppointmentsScreenState extends State<AppointmentsScreen>
                     borderRadius: BorderRadius.circular(50.r),
                   ),
                   child: Text(
-                    _toPersianDigits(count.toString()),
+                    toPersianDigits(count.toString()),
                     style: TextStyle(
                       fontSize: 10.sp,
                       fontWeight: FontWeight.w700,
@@ -602,31 +409,31 @@ class _AppointmentsScreenState extends State<AppointmentsScreen>
   }
 
   // ---------------------------------------------------------------------------
-  // ۲. کارت نوبت (مشترک برای بیمار و پزشک با دکمه‌های هوشمند)
+  // ۲. کارت نوبت
   // ---------------------------------------------------------------------------
-  Widget _buildAppointmentCard(
-    BuildContext context,
-    _AppointmentItemModel item,
-  ) {
+  Widget _buildAppointmentCard(BuildContext context, AppointmentModel item) {
     final textTheme = Theme.of(context).textTheme;
-    final bool isDoctorView = _currentRole == AppointmentViewRole.doctor;
-    final bool isOnline = item.visitMode == AppointmentVisitMode.onlineChat;
+    final bool isOnline = item.visitMode == VisitModeType.onlineChat;
 
-    // آیا نوبت آنلاین هم‌اکنون در جریان است؟
+    final String counterpartName = _isDoctorView
+        ? item.customer.fullName
+        : item.provider.displayName;
+    final String counterpartSubtitle = _isDoctorView
+        ? 'بیمار • ${item.offering.title}'
+        : item.provider.specialtiesTitle;
+
     final bool isLiveOnlineSession =
         isOnline &&
         item.status == AppointmentStatusType.confirmed &&
         item.isCurrentlyInProgress;
 
-    // آیا امکان لغو نوبت وجود دارد؟ (قبل از زمان شروع و در وضعیت پیش‌رو)
     final bool canCancel =
         (item.status == AppointmentStatusType.confirmed ||
             item.status == AppointmentStatusType.pending) &&
         !item.hasStarted;
 
-    // آیا پزشک می‌تواند ویزیت آنلاین را خاتمه دهد؟ (فقط پزشک + آنلاین + تایید شده + شروع شده)
     final bool canDoctorComplete =
-        isDoctorView &&
+        _isDoctorView &&
         isOnline &&
         item.status == AppointmentStatusType.confirmed &&
         item.hasStarted;
@@ -653,7 +460,6 @@ class _AppointmentsScreenState extends State<AppointmentsScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // بنر بالای کارت برای نوبت‌های آنلاین در حال برگزاری
           if (isLiveOnlineSession) ...[
             Container(
               padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
@@ -713,7 +519,6 @@ class _AppointmentsScreenState extends State<AppointmentsScreen>
             SizedBox(height: 12.h),
           ],
 
-          // هدر کارت: آواتار، نام پزشک/بیمار و برچسب رنگی نوع نوبت (چت آنلاین: سبز / حضوری: آبی)
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -721,14 +526,14 @@ class _AppointmentsScreenState extends State<AppointmentsScreen>
               Expanded(
                 child: Row(
                   children: [
-                    _buildCounterpartAvatar(context, item),
+                    _buildCounterpartAvatar(context, counterpartName),
                     SizedBox(width: 10.w),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            item.counterpartName,
+                            counterpartName,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: textTheme.headlineMedium?.copyWith(
@@ -739,7 +544,7 @@ class _AppointmentsScreenState extends State<AppointmentsScreen>
                           ),
                           SizedBox(height: 2.h),
                           Text(
-                            item.counterpartSubtitle,
+                            counterpartSubtitle,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: textTheme.bodySmall?.copyWith(
@@ -753,14 +558,11 @@ class _AppointmentsScreenState extends State<AppointmentsScreen>
                 ),
               ),
               SizedBox(width: 8.w),
-
-              // برچسب رنگی نوع نوبت (طبق پرامپت: چت آنلاین سبز / ویزیت حضوری آبی)
               _buildVisitModeBadge(context, item.visitMode),
             ],
           ),
           SizedBox(height: 12.h),
 
-          // باکس جزئیات زمان نوبت (start_at تا end_at)، شناسه و آدرس/شرح حال
           Container(
             padding: EdgeInsets.all(12.r),
             decoration: BoxDecoration(
@@ -770,7 +572,6 @@ class _AppointmentsScreenState extends State<AppointmentsScreen>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // تاریخ شمسی و بازه زمانی دقیق
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -804,7 +605,6 @@ class _AppointmentsScreenState extends State<AppointmentsScreen>
                 ),
                 SizedBox(height: 8.h),
 
-                // شناسه نوبت و مبلغ
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -832,7 +632,7 @@ class _AppointmentsScreenState extends State<AppointmentsScreen>
                             borderRadius: BorderRadius.circular(6.r),
                           ),
                           child: Text(
-                            '#${item.id}',
+                            '#${item.shortId}',
                             style: textTheme.titleSmall?.copyWith(
                               color: AppColors.onSurfaceVariant,
                             ),
@@ -840,18 +640,16 @@ class _AppointmentsScreenState extends State<AppointmentsScreen>
                         ),
                       ],
                     ),
-                    if (item.priceText != null)
-                      Text(
-                        item.priceText!,
-                        style: textTheme.titleSmall?.copyWith(
-                          color: AppColors.onSurface,
-                          fontWeight: FontWeight.w700,
-                        ),
+                    Text(
+                      item.priceFormatted,
+                      style: textTheme.titleSmall?.copyWith(
+                        color: AppColors.onSurface,
+                        fontWeight: FontWeight.w700,
                       ),
+                    ),
                   ],
                 ),
 
-                // نمایش آدرس کلینیک برای نوبت‌های حضوری
                 if (!isOnline && item.clinicAddress != null) ...[
                   Padding(
                     padding: EdgeInsets.symmetric(vertical: 8.h),
@@ -879,8 +677,7 @@ class _AppointmentsScreenState extends State<AppointmentsScreen>
                   ),
                 ],
 
-                // نمایش یادداشت/علائم بیمار (مخصوصاً برای پزشک یا یادآوری بیمار)
-                if (item.notes != null && item.notes!.isNotEmpty) ...[
+                if (item.notes.isNotEmpty) ...[
                   Padding(
                     padding: EdgeInsets.symmetric(vertical: 8.h),
                     child: Divider(height: 1, color: AppColors.text200Light),
@@ -896,7 +693,7 @@ class _AppointmentsScreenState extends State<AppointmentsScreen>
                       SizedBox(width: 6.w),
                       Expanded(
                         child: Text(
-                          item.notes!,
+                          item.notes,
                           style: textTheme.bodySmall?.copyWith(
                             color: AppColors.onSurface,
                             height: 1.45,
@@ -907,9 +704,7 @@ class _AppointmentsScreenState extends State<AppointmentsScreen>
                   ),
                 ],
 
-                // نمایش علت لغو در تب لغوشده
-                if (item.cancelReason != null &&
-                    item.cancelReason!.isNotEmpty) ...[
+                if (item.cancelReason.isNotEmpty) ...[
                   Padding(
                     padding: EdgeInsets.symmetric(vertical: 8.h),
                     child: Divider(height: 1, color: AppColors.text200Light),
@@ -938,15 +733,13 @@ class _AppointmentsScreenState extends State<AppointmentsScreen>
           ),
           SizedBox(height: 10.h),
 
-          // نوار وضعیت نوبت (Status Pill)
           _buildStatusBanner(context, item),
           SizedBox(height: 12.h),
 
-          // ۳. دکمه‌های عملیاتی هوشمند روی کارت
           _buildCardActions(
             context,
             item: item,
-            isDoctorView: isDoctorView,
+            counterpartName: counterpartName,
             isOnline: isOnline,
             canCancel: canCancel,
             canDoctorComplete: canDoctorComplete,
@@ -956,24 +749,9 @@ class _AppointmentsScreenState extends State<AppointmentsScreen>
     );
   }
 
-  Widget _buildCounterpartAvatar(
-    BuildContext context,
-    _AppointmentItemModel item,
-  ) {
-    if (item.avatarUrl != null && item.avatarUrl!.isNotEmpty) {
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(12.r),
-        child: AppCachedImage(
-          url: item.avatarUrl!,
-          width: 48.r,
-          height: 48.r,
-          fit: BoxFit.cover,
-        ),
-      );
-    }
-
-    final String initial = item.counterpartName.trim().isNotEmpty
-        ? item.counterpartName.trim().substring(0, 1)
+  Widget _buildCounterpartAvatar(BuildContext context, String name) {
+    final String initial = name.trim().isNotEmpty
+        ? name.trim().substring(0, 1)
         : 'ب';
 
     return Container(
@@ -994,22 +772,16 @@ class _AppointmentsScreenState extends State<AppointmentsScreen>
     );
   }
 
-  /// برچسب نوع ویزیت: «چت آنلاین» (سبز) یا «ویزیت حضوری» (آبی)
-  Widget _buildVisitModeBadge(
-    BuildContext context,
-    AppointmentVisitMode visitMode,
-  ) {
+  Widget _buildVisitModeBadge(BuildContext context, VisitModeType visitMode) {
     final textTheme = Theme.of(context).textTheme;
-    final bool isOnline = visitMode == AppointmentVisitMode.onlineChat;
+    final bool isOnline = visitMode == VisitModeType.onlineChat;
 
     final Color bgColor = isOnline
-        ? AppColors
-              .statusConfirmedBg // سبز ملایم
-        : AppColors.statusPendingApprovalBg; // آبی ملایم
+        ? AppColors.statusConfirmedBg
+        : AppColors.statusPendingApprovalBg;
     final Color fgColor = isOnline
-        ? AppColors
-              .statusConfirmedFg // سبز تیره
-        : AppColors.statusPendingApprovalFg; // آبی تیره
+        ? AppColors.statusConfirmedFg
+        : AppColors.statusPendingApprovalFg;
 
     return Container(
       padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 5.h),
@@ -1038,8 +810,7 @@ class _AppointmentsScreenState extends State<AppointmentsScreen>
     );
   }
 
-  /// نمایش وضعیت نوبت بر اساس Status System
-  Widget _buildStatusBanner(BuildContext context, _AppointmentItemModel item) {
+  Widget _buildStatusBanner(BuildContext context, AppointmentModel item) {
     final textTheme = Theme.of(context).textTheme;
 
     late final Color bgColor;
@@ -1047,18 +818,26 @@ class _AppointmentsScreenState extends State<AppointmentsScreen>
     late final IconData icon;
     late final String statusText;
 
+    final awaitingOnlinePayment =
+        item.status == AppointmentStatusType.pending &&
+        item.payment != null &&
+        item.payment!.method == PaymentMethodType.online &&
+        item.payment!.status != PaymentStatusType.paid;
+
     switch (item.status) {
       case AppointmentStatusType.pending:
         bgColor = AppColors.statusPendingPaymentBg;
         fgColor = AppColors.statusPendingPaymentFg;
         icon = Icons.hourglass_top_rounded;
-        statusText = 'در انتظار تأیید پزشک';
+        statusText = awaitingOnlinePayment
+            ? 'در انتظار تکمیل پرداخت آنلاین'
+            : 'در انتظار تأیید پزشک';
         break;
       case AppointmentStatusType.confirmed:
         bgColor = AppColors.surfaceContainer;
         fgColor = AppColors.primary500;
         icon = Icons.verified_rounded;
-        statusText = item.visitMode == AppointmentVisitMode.onlineChat
+        statusText = item.visitMode == VisitModeType.onlineChat
             ? (item.isCurrentlyInProgress
                   ? 'تأیید شده — پنجره زمانی ارسال پیام برای بیمار باز است'
                   : 'تأیید شده — در رأس ساعت نوبت، ارسال پیام برای بیمار فعال می‌شود')
@@ -1081,6 +860,12 @@ class _AppointmentsScreenState extends State<AppointmentsScreen>
         fgColor = AppColors.statusCancelledFg;
         icon = Icons.cancel_outlined;
         statusText = 'لغو شده توسط پزشک';
+        break;
+      case AppointmentStatusType.noShow:
+        bgColor = AppColors.statusCancelledBg;
+        fgColor = AppColors.statusCancelledFg;
+        icon = Icons.person_off_outlined;
+        statusText = 'عدم مراجعه بیمار';
         break;
     }
 
@@ -1109,36 +894,89 @@ class _AppointmentsScreenState extends State<AppointmentsScreen>
   }
 
   // ---------------------------------------------------------------------------
-  // ۳. دکمه‌های عملیاتی روی کارت (ورود به چت، لغو نوبت، خاتمه ویزیت توسط پزشک)
+  // ۳. دکمه‌های عملیاتی روی کارت
   // ---------------------------------------------------------------------------
   Widget _buildCardActions(
     BuildContext context, {
-    required _AppointmentItemModel item,
-    required bool isDoctorView,
+    required AppointmentModel item,
+    required String counterpartName,
     required bool isOnline,
     required bool canCancel,
     required bool canDoctorComplete,
   }) {
     final textTheme = Theme.of(context).textTheme;
 
-    // در تب لغوشده نیازی به دکمه عملیاتی نیست
     if (item.status == AppointmentStatusType.cancelledByCustomer ||
-        item.status == AppointmentStatusType.cancelledByProvider) {
+        item.status == AppointmentStatusType.cancelledByProvider ||
+        item.status == AppointmentStatusType.noShow) {
       return const SizedBox.shrink();
     }
+
+    final bool isBusy =
+        _loadingTargetId == item.id ||
+        (item.payment != null && _loadingTargetId == item.payment!.id);
+
+    final bool canCustomerPayOnline =
+        !_isDoctorView &&
+        item.status == AppointmentStatusType.pending &&
+        item.payment != null &&
+        item.payment!.method == PaymentMethodType.online &&
+        (item.payment!.status == PaymentStatusType.pending ||
+            item.payment!.status == PaymentStatusType.failed);
+
+    final bool canDoctorConfirmPending =
+        _isDoctorView &&
+        item.status == AppointmentStatusType.pending &&
+        (item.payment == null ||
+            item.payment!.method == PaymentMethodType.inPerson ||
+            item.payment!.status == PaymentStatusType.paid);
+
+    final bool canDoctorMarkInPersonPaid =
+        _isDoctorView &&
+        item.payment != null &&
+        item.payment!.method == PaymentMethodType.inPerson &&
+        item.payment!.status == PaymentStatusType.pending &&
+        (item.status == AppointmentStatusType.confirmed ||
+            item.status == AppointmentStatusType.completed);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        if (canCustomerPayOnline) ...[
+          SizedBox(
+            height: 46.h,
+            child: ElevatedButton.icon(
+              onPressed: isBusy
+                  ? null
+                  : () {
+                      _bloc.add(
+                        RetryOnlinePaymentEvent(paymentId: item.payment!.id),
+                      );
+                    },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary500,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12.r),
+                ),
+              ),
+              icon: Icon(Icons.payment_rounded, size: 18.r),
+              label: const Text('پرداخت آنلاین نوبت'),
+            ),
+          ),
+          SizedBox(height: 8.h),
+        ],
+
         Row(
           children: [
-            // دکمه اصلی: اگر نوبت از نوع online_chat است -> ورود به اتاق چت با پزشک/بیمار
             if (isOnline)
               Expanded(
                 child: SizedBox(
                   height: 46.h,
                   child: ElevatedButton.icon(
-                    onPressed: () => _onOpenChatRoom(context, item),
+                    onPressed: () {
+                      // طبق دستور شما فعلاً دکمه ورود به اتاق چت کاری انجام نمی‌دهد
+                    },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.primary500,
                       foregroundColor: Colors.white,
@@ -1148,7 +986,7 @@ class _AppointmentsScreenState extends State<AppointmentsScreen>
                     ),
                     icon: Icon(Icons.chat_bubble_outline_rounded, size: 18.r),
                     label: Text(
-                      isDoctorView
+                      _isDoctorView
                           ? (item.status == AppointmentStatusType.completed
                                 ? 'ورود به چت (ارسال نسخه / آزمایش)'
                                 : 'ورود به اتاق چت با بیمار')
@@ -1164,19 +1002,20 @@ class _AppointmentsScreenState extends State<AppointmentsScreen>
                   ),
                 ),
               )
-            else
-              // اگر نوبت حضوری است
+            else if (canDoctorConfirmPending)
               Expanded(
                 child: SizedBox(
                   height: 46.h,
                   child: OutlinedButton.icon(
-                    onPressed: () {
-                      // نمایش جزئیات آدرس یا تأیید نوبت برای پزشک
-                      if (isDoctorView &&
-                          item.status == AppointmentStatusType.pending) {
-                        _handleConfirmAppointmentByDoctor(context, item);
-                      }
-                    },
+                    onPressed: isBusy
+                        ? null
+                        : () {
+                            _bloc.add(
+                              ConfirmAppointmentByDoctorEvent(
+                                appointmentId: item.id,
+                              ),
+                            );
+                          },
                     style: OutlinedButton.styleFrom(
                       foregroundColor: AppColors.secondary,
                       side: const BorderSide(
@@ -1187,18 +1026,9 @@ class _AppointmentsScreenState extends State<AppointmentsScreen>
                         borderRadius: BorderRadius.circular(12.r),
                       ),
                     ),
-                    icon: Icon(
-                      isDoctorView &&
-                              item.status == AppointmentStatusType.pending
-                          ? Icons.check_circle_outline_rounded
-                          : Icons.directions_rounded,
-                      size: 18.r,
-                    ),
+                    icon: Icon(Icons.check_circle_outline_rounded, size: 18.r),
                     label: Text(
-                      isDoctorView &&
-                              item.status == AppointmentStatusType.pending
-                          ? 'تأیید نوبت بیمار'
-                          : 'مشاهده جزئیات و مسیریابی',
+                      'تأیید نوبت بیمار',
                       style: textTheme.labelMedium?.copyWith(
                         color: AppColors.secondary,
                         fontWeight: FontWeight.w700,
@@ -1208,27 +1038,32 @@ class _AppointmentsScreenState extends State<AppointmentsScreen>
                 ),
               ),
 
-            // دکمه ثانویه: اگر زمان شروع نوبت هنوز نرسیده است -> «لغو نوبت»
             if (canCancel) ...[
-              SizedBox(width: 8.w),
-              SizedBox(
-                height: 46.h,
-                child: TextButton.icon(
-                  onPressed: () => _showCancelDialog(context, item),
-                  style: TextButton.styleFrom(
-                    backgroundColor: AppColors.statusCancelledBg,
-                    foregroundColor: AppColors.statusCancelledFg,
-                    padding: EdgeInsets.symmetric(horizontal: 14.w),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12.r),
+              if (isOnline || canDoctorConfirmPending) SizedBox(width: 8.w),
+              Expanded(
+                flex: (isOnline || canDoctorConfirmPending) ? 0 : 1,
+                child: SizedBox(
+                  height: 46.h,
+                  child: TextButton.icon(
+                    onPressed: isBusy
+                        ? null
+                        : () =>
+                              _showCancelDialog(context, item, counterpartName),
+                    style: TextButton.styleFrom(
+                      backgroundColor: AppColors.statusCancelledBg,
+                      foregroundColor: AppColors.statusCancelledFg,
+                      padding: EdgeInsets.symmetric(horizontal: 14.w),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12.r),
+                      ),
                     ),
-                  ),
-                  icon: Icon(Icons.close_rounded, size: 17.r),
-                  label: Text(
-                    'لغو نوبت',
-                    style: textTheme.labelMedium?.copyWith(
-                      color: AppColors.statusCancelledFg,
-                      fontWeight: FontWeight.w700,
+                    icon: Icon(Icons.close_rounded, size: 17.r),
+                    label: Text(
+                      'لغو نوبت',
+                      style: textTheme.labelMedium?.copyWith(
+                        color: AppColors.statusCancelledFg,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
                 ),
@@ -1237,14 +1072,45 @@ class _AppointmentsScreenState extends State<AppointmentsScreen>
           ],
         ),
 
-        // دکمه اختصاصی پزشک برای نوبت آنلاین در جریان: «خاتمه و تکمیل ویزیت»
-        // متصل به POST /api/v1/appointments/{appointment_id}/complete/
+        if (canDoctorMarkInPersonPaid) ...[
+          SizedBox(height: 8.h),
+          SizedBox(
+            height: 44.h,
+            child: OutlinedButton.icon(
+              onPressed: isBusy
+                  ? null
+                  : () {
+                      _bloc.add(
+                        MarkInPersonPaymentPaidEvent(
+                          paymentId: item.payment!.id,
+                        ),
+                      );
+                    },
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.primary500,
+                side: const BorderSide(color: AppColors.primary500),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12.r),
+                ),
+              ),
+              icon: Icon(Icons.payments_outlined, size: 18.r),
+              label: const Text('تأیید دریافت هزینه حضوری در مطب'),
+            ),
+          ),
+        ],
+
         if (canDoctorComplete) ...[
           SizedBox(height: 8.h),
           SizedBox(
             height: 44.h,
             child: ElevatedButton.icon(
-              onPressed: () => _showCompleteVisitConfirmation(context, item),
+              onPressed: isBusy
+                  ? null
+                  : () => _showCompleteVisitConfirmation(
+                      context,
+                      item,
+                      counterpartName,
+                    ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.tertiaryContainer,
                 foregroundColor: Colors.white,
@@ -1267,9 +1133,6 @@ class _AppointmentsScreenState extends State<AppointmentsScreen>
     );
   }
 
-  // ---------------------------------------------------------------------------
-  // وضعیت خالی بودن لیست
-  // ---------------------------------------------------------------------------
   Widget _buildEmptyState(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
 
@@ -1307,7 +1170,7 @@ class _AppointmentsScreenState extends State<AppointmentsScreen>
           ),
           SizedBox(height: 4.h),
           Text(
-            'لیست نوبت‌های انتخابی شما در این وضعیت خالی است.',
+            'لیست نوبت‌های شما در این وضعیت خالی است.',
             textAlign: TextAlign.center,
             style: textTheme.bodySmall?.copyWith(
               color: AppColors.onSurfaceVariant,
@@ -1318,34 +1181,11 @@ class _AppointmentsScreenState extends State<AppointmentsScreen>
     );
   }
 
-  // ---------------------------------------------------------------------------
-  // متدهای عملیاتی متصل به منطق API بک‌اند
-  // ---------------------------------------------------------------------------
-
-  /// ۱. ورود به اتاق چت (ابتدا بررسی GET /api/v1/appointments/{id}/chat-access/)
-  void _onOpenChatRoom(BuildContext context, _AppointmentItemModel item) {
-    final bool isDoctorView = _currentRole == AppointmentViewRole.doctor;
-    final bool canSend =
-        isDoctorView ||
-        (item.status == AppointmentStatusType.confirmed &&
-            item.isCurrentlyInProgress);
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        behavior: SnackBarBehavior.floating,
-        backgroundColor: AppColors.onSurface,
-        content: Text(
-          canSend
-              ? 'ورود به گفت‌وگو (${item.conversationId}) — ارسال پیام، عکس و ویس فعال است.'
-              : 'ورود به گفت‌وگو (${item.conversationId}) — فقط خواندنی (خارج از بازه زمانی نوبت).',
-          style: TextStyle(fontFamily: 'IRANYekan', fontSize: 12.sp),
-        ),
-      ),
-    );
-  }
-
-  /// ۲. لغو نوبت پیش از شروع (POST /api/v1/appointments/{pk}/cancel/)
-  void _showCancelDialog(BuildContext context, _AppointmentItemModel item) {
+  void _showCancelDialog(
+    BuildContext context,
+    AppointmentModel item,
+    String counterpartName,
+  ) {
     final TextEditingController reasonController = TextEditingController();
 
     showModalBottomSheet(
@@ -1370,13 +1210,13 @@ class _AppointmentsScreenState extends State<AppointmentsScreen>
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Text(
-                  'لغو نوبت #${item.id}',
+                  'لغو نوبت #${item.shortId}',
                   style: Theme.of(context).textTheme.headlineMedium
                       ?.copyWith(fontWeight: FontWeight.w700),
                 ),
                 SizedBox(height: 8.h),
                 Text(
-                  'آیا از لغو نوبت «${item.counterpartName}» در تاریخ ${item.jalaliDateText} اطمینان دارید؟',
+                  'آیا از لغو نوبت «$counterpartName» در تاریخ ${item.jalaliDateText} اطمینان دارید؟',
                   style: Theme.of(context).textTheme.bodyMedium
                       ?.copyWith(color: AppColors.onSurfaceVariant),
                 ),
@@ -1408,19 +1248,17 @@ class _AppointmentsScreenState extends State<AppointmentsScreen>
                       child: ElevatedButton(
                         onPressed: () {
                           Navigator.pop(ctx);
-                          setState(() {
-                            item.status =
-                                _currentRole == AppointmentViewRole.patient
-                                ? AppointmentStatusType.cancelledByCustomer
-                                : AppointmentStatusType.cancelledByProvider;
-                            item.cancelReason =
-                                reasonController.text.trim().isNotEmpty
-                                ? reasonController.text.trim()
-                                : 'لغو توسط کاربر پیش از شروع نوبت';
-                          });
+                          _bloc.add(
+                            CancelAppointmentEvent(
+                              appointmentId: item.id,
+                              cancelReason: reasonController.text.trim(),
+                              isProviderRole: _isDoctorView,
+                            ),
+                          );
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.statusCancelledFg,
+                          foregroundColor: Colors.white,
                           minimumSize: Size.fromHeight(46.h),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12.r),
@@ -1439,10 +1277,10 @@ class _AppointmentsScreenState extends State<AppointmentsScreen>
     );
   }
 
-  /// ۳. خاتمه دستی ویزیت آنلاین توسط پزشک (POST /api/v1/appointments/{appointment_id}/complete/)
   void _showCompleteVisitConfirmation(
     BuildContext context,
-    _AppointmentItemModel item,
+    AppointmentModel item,
+    String counterpartName,
   ) {
     showDialog(
       context: context,
@@ -1459,7 +1297,7 @@ class _AppointmentsScreenState extends State<AppointmentsScreen>
                   ?.copyWith(fontWeight: FontWeight.w700),
             ),
             content: Text(
-              'با ثبت پایان ویزیت، وضعیت نوبت «${item.counterpartName}» به تکمیل‌شده تغییر می‌یابد و ارسال پیام برای بیمار قفل می‌شود.\n\nشما همچنان در هر زمان می‌توانید کد رهگیری نسخه یا دستور آزمایش را در چت برای بیمار ارسال کنید.',
+              'با ثبت پایان ویزیت، وضعیت نوبت «$counterpartName» به تکمیل‌شده تغییر می‌یابد و ارسال پیام برای بیمار قفل می‌شود.\n\nشما همچنان در هر زمان می‌توانید کد رهگیری نسخه یا دستور آزمایش را در چت برای بیمار ارسال کنید.',
               style: Theme.of(context).textTheme.bodyMedium
                   ?.copyWith(color: AppColors.onSurfaceVariant, height: 1.6),
             ),
@@ -1471,13 +1309,13 @@ class _AppointmentsScreenState extends State<AppointmentsScreen>
               ElevatedButton(
                 onPressed: () {
                   Navigator.pop(ctx);
-                  setState(() {
-                    item.status = AppointmentStatusType.completed;
-                    item.isCurrentlyInProgress = false;
-                  });
+                  _bloc.add(
+                    CompleteOnlineVisitByDoctorEvent(appointmentId: item.id),
+                  );
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary500,
+                  foregroundColor: Colors.white,
                 ),
                 child: const Text('ثبت پایان ویزیت'),
               ),
@@ -1487,53 +1325,4 @@ class _AppointmentsScreenState extends State<AppointmentsScreen>
       },
     );
   }
-
-  /// ۴. تأیید نوبت در انتظار توسط پزشک (PATCH /api/v1/appointments/{pk}/status/)
-  void _handleConfirmAppointmentByDoctor(
-    BuildContext context,
-    _AppointmentItemModel item,
-  ) {
-    setState(() {
-      item.status = AppointmentStatusType.confirmed;
-    });
-  }
-}
-
-// -----------------------------------------------------------------------------
-// مدل داده داخلی کارت نوبت
-// -----------------------------------------------------------------------------
-class _AppointmentItemModel {
-  final String id;
-  final String counterpartName;
-  final String counterpartSubtitle;
-  final String? avatarUrl;
-  final AppointmentVisitMode visitMode;
-  AppointmentStatusType status;
-  final String jalaliDateText;
-  final String timeRangeText;
-  bool isCurrentlyInProgress;
-  final bool hasStarted;
-  final String? conversationId;
-  final String? clinicAddress;
-  final String? notes;
-  String? cancelReason;
-  final String? priceText;
-
-  _AppointmentItemModel({
-    required this.id,
-    required this.counterpartName,
-    required this.counterpartSubtitle,
-    this.avatarUrl,
-    required this.visitMode,
-    required this.status,
-    required this.jalaliDateText,
-    required this.timeRangeText,
-    required this.isCurrentlyInProgress,
-    required this.hasStarted,
-    this.conversationId,
-    this.clinicAddress,
-    this.notes,
-    this.cancelReason,
-    this.priceText,
-  });
 }

@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:reservation_chat_univercity_project/core/constants/app_constants.dart';
 import 'package:reservation_chat_univercity_project/core/constants/app_setting.dart';
 import 'package:reservation_chat_univercity_project/core/themes/app_colors.dart';
 import 'package:reservation_chat_univercity_project/core/utils/navigator.dart';
-import 'package:reservation_chat_univercity_project/core/widgets/app_cached_image.dart';
+import 'package:reservation_chat_univercity_project/core/widgets/global_error_section.dart';
+import 'package:reservation_chat_univercity_project/core/widgets/global_loading_section.dart';
+import 'package:reservation_chat_univercity_project/features/appointments/screens/doctor_profile_booking_screen.dart';
+import 'package:reservation_chat_univercity_project/features/home/bloc/home_bloc.dart';
+import 'package:reservation_chat_univercity_project/features/home/services/model/home_models.dart';
+import 'package:reservation_chat_univercity_project/features/home/specialty_doctors_screen.dart';
 import 'package:reservation_chat_univercity_project/features/profile/screens/notification_screen.dart';
 import 'package:reservation_chat_univercity_project/features/profile/screens/profile_screen.dart';
-import 'package:reservation_chat_univercity_project/features/appointments/screens/doctor_profile_booking_screen.dart';
-import 'package:reservation_chat_univercity_project/features/home/specialty_doctors_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -19,138 +22,9 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen>
     with SingleTickerProviderStateMixin {
-  final TextEditingController _searchController = TextEditingController();
-  final FocusNode _searchFocusNode = FocusNode();
   late final AnimationController _pulseController;
-  bool _isSearchFocused = false;
-
-  // لیست تخصص‌ها (آماده اتصال به GET /api/v1/categories/)
-  final List<_SpecialtyItem> _specialties = const [
-    _SpecialtyItem(
-      id: 'cardiology',
-      title: 'قلب و عروق',
-      icon: Icons.monitor_heart_rounded,
-      usePrimaryColor: true,
-    ),
-    _SpecialtyItem(
-      id: 'dermatology',
-      title: 'پوست و مو',
-      icon: Icons.face_retouching_natural_rounded,
-      usePrimaryColor: false,
-    ),
-    _SpecialtyItem(
-      id: 'neurology',
-      title: 'مغز و اعصاب',
-      icon: Icons.psychology_rounded,
-      usePrimaryColor: true,
-    ),
-    _SpecialtyItem(
-      id: 'pediatrics',
-      title: 'کودکان',
-      icon: Icons.child_care_rounded,
-      usePrimaryColor: false,
-    ),
-    _SpecialtyItem(
-      id: 'obgyn',
-      title: 'زنان و زایمان',
-      icon: Icons.pregnant_woman_rounded,
-      usePrimaryColor: true,
-    ),
-    _SpecialtyItem(
-      id: 'orthopedics',
-      title: 'ارتوپدی',
-      icon: Icons.accessibility_new_rounded,
-      usePrimaryColor: false,
-    ),
-    _SpecialtyItem(
-      id: 'ophthalmology',
-      title: 'چشم‌پزشکی',
-      icon: Icons.visibility_rounded,
-      usePrimaryColor: true,
-    ),
-    _SpecialtyItem(
-      id: 'dentistry',
-      title: 'دندان‌پزشکی',
-      icon: Icons.medical_services_rounded,
-      usePrimaryColor: false,
-    ),
-  ];
-
-  // لیست پزشکان نمونه (آماده اتصال به GET /api/v1/providers/)
-  final List<_DoctorItemModel> _doctors = [
-    _DoctorItemModel(
-      id: '1',
-      name: 'دکتر مریم صادقی',
-      specialty: 'فوق تخصص قلب و عروق و اکوکاردیوگرافی',
-      avatarUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBaivf4mRYB_mgxeKxpoOOrc2R_Wk09Q7d7n3YI1Ll_WelviZmaPUJJ-7BpiBi_Ixm7871l_H431z8JNBmooMS2cp0cA33GLN_JD78CpwObNocuvwgWXiWFgvNRSJjgusUp8dmVkoHb9XUPgWWnxihNZXeFaIxzauFslyUCYgKfwLaHerFuOWImiwm5Z-DP7M4JquvW_26jca29dq-If1bDjcI2DIjQaJI6WiTgihTj4krm2CMG5rKg',
-      rating: '۴.۹',
-      reviewsCount: '۱۴۲',
-      medicalCode: '۸۴۳۲۰',
-      isOnline: true,
-      hasInPerson: true,
-      onlineTagText: 'مشاوره متنی آنلاین',
-      onlineTagIcon: Icons.chat_bubble_outline_rounded,
-      availabilityPrefix: 'اولین نوبت خالی: ',
-      availabilityValue: 'امروز ۱۷:۳۰',
-      isInstantOnline: false,
-      ctaText: 'دریافت نوبت',
-      isPrimaryCta: true,
-    ),
-    _DoctorItemModel(
-      id: '2',
-      name: 'دکتر آرش فرهمند',
-      specialty: 'متخصص و بورد تخصصی پوست، مو و زیبایی',
-      avatarUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCI7U8dX2Y_-S4H228kNjlcmjokA3khvAHTU8f4hW470sJXxAKPiS2-d2a8FhudhulpYeRBjxBldlncAvsjC2LBhbBLfAi7ou1UEWgExLZpw09eT_d4rFEs7fnGhiYMcP3Ve-9_SebotabOYHVb7QQw0S9zQomr2rxq1CvUmY021nrpDGfS5bHxEEEZnH-ky9-S_e3UmqKZuYXKBVh3wvMwqM2ngLO6AKGa_02AAd8o54sl3KtdEJZK',
-      rating: '۴.۸',
-      reviewsCount: '۹۸',
-      medicalCode: '۹۲۱۰۴',
-      isOnline: true,
-      hasInPerson: true,
-      onlineTagText: 'مشاوره تصویری',
-      onlineTagIcon: Icons.videocam_outlined,
-      availabilityPrefix: 'مشاوره آنلاین: ',
-      availabilityValue: 'پاسخ‌گویی ظرف ۲۰ دقیقه',
-      isInstantOnline: true,
-      ctaText: 'دریافت نوبت',
-      isPrimaryCta: true,
-    ),
-    _DoctorItemModel(
-      id: '3',
-      name: 'دکتر سارا کاظمی',
-      specialty: 'متخصص کودکان، نوزادان و رشد کودک',
-      avatarUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuAmfSbvwOXnsB1HefvPPcSmZTzalZ6NEzSxtQjWvuqwtG9hE8pjG9u6iz1j4HsyvVzQvek94mssz5FYXbX58H3iC-yFKMnLbz31deeq0sbaWgPCYciSBa77nrK1rjuspgGO94MN5zi4tbDXCwGDvey1UKsV1Am7_2XRmCFrHDevKLvr4B_rI2umkOC3tgRi42OQtGddkBAUvMFsumQ2XFeOU8qNB3TcxDAiLLEWJ1aaby4yHhm_RtL3',
-      rating: '۴.۹',
-      reviewsCount: '۲۱۵',
-      medicalCode: '۶۷۵۱۸',
-      isOnline: true,
-      hasInPerson: true,
-      onlineTagText: 'مشاوره متنی آنلاین',
-      onlineTagIcon: Icons.chat_bubble_outline_rounded,
-      availabilityPrefix: 'اولین نوبت خالی: ',
-      availabilityValue: 'فردا ۱۰:۰۰',
-      isInstantOnline: false,
-      ctaText: 'دریافت نوبت',
-      isPrimaryCta: true,
-    ),
-    _DoctorItemModel(
-      id: '4',
-      name: 'دکتر کامران بهرامی',
-      specialty: 'جراح مغز و اعصاب و ستون فقرات',
-      avatarUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuC6g_DP3Hc4rYCpkgIwsJo4ZLTulhLFC5EYTzIN4OqPh3WWJncwdkNSenz-ZBvOkj_91gU_gYNgXkIuDo5v2zhtHUV_aZgOeKFHb7Yq3YgYNBqs_IfvvL3eXxTkNDrGxUnl4I0tc8LWoOzEbp0s-lHwl3cLvL599ArIgoGhVrAph7JTbM5AR2Ka6MmCfR5oiI8N44Ag5KEpjAXtWEXIgkTZ4nbIwijXt25ZZ8N1F0qh1RjbwB70q1-8',
-      rating: '۴.۷',
-      reviewsCount: '۷۶',
-      medicalCode: '۵۱۲۰۴',
-      isOnline: false,
-      hasInPerson: true,
-      onlineTagText: null,
-      onlineTagIcon: null,
-      availabilityPrefix: 'اولین نوبت خالی: ',
-      availabilityValue: 'دوشنبه ۱۶:۱۵',
-      isInstantOnline: false,
-      ctaText: 'مشاهده تقویم',
-      isPrimaryCta: false,
-    ),
-  ];
+  late final HomeBloc _homeBloc;
+  final Set<String> _bookmarkedIds = <String>{};
 
   @override
   void initState() {
@@ -160,60 +34,93 @@ class _HomeScreenState extends State<HomeScreen>
       duration: const Duration(milliseconds: 1000),
     )..repeat(reverse: true);
 
-    _searchController.addListener(() {
-      setState(() {});
-    });
-
-    _searchFocusNode.addListener(() {
-      setState(() {
-        _isSearchFocused = _searchFocusNode.hasFocus;
-      });
-    });
+    _homeBloc = HomeBloc()..add(GetHomeDataEvent(pageSize: 10));
   }
 
   @override
   void dispose() {
-    _searchController.dispose();
-    _searchFocusNode.dispose();
     _pulseController.dispose();
+    _homeBloc.close();
     super.dispose();
+  }
+
+  String _toPersianDigits(String input) {
+    const english = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
+    const persian = ['۰', '۱', '۲', '۳', '۴', '۵', '۶', '۷', '۸', '۹'];
+    String output = input;
+    for (int i = 0; i < english.length; i++) {
+      output = output.replaceAll(english[i], persian[i]);
+    }
+    return output;
   }
 
   @override
   Widget build(BuildContext context) {
-    return Directionality(
-      textDirection: TextDirection.rtl,
-      child: Scaffold(
-        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-        body: Column(
-          children: [
-            // ۱. هدر ثابت بالای صفحه
-            _buildTopHeader(context),
+    return BlocProvider<HomeBloc>.value(
+      value: _homeBloc,
+      child: Directionality(
+        textDirection: TextDirection.rtl,
+        child: Scaffold(
+          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+          body: Column(
+            children: [
+              _buildTopHeader(context),
+              Expanded(
+                child: BlocBuilder<HomeBloc, HomeState>(
+                  buildWhen: (previous, current) =>
+                      current is HomeDataLoadingState ||
+                      current is HomeDataSuccessState ||
+                      current is HomeDataFailedState,
+                  builder: (context, state) {
+                    if (state is HomeDataLoadingState || state is HomeInitial) {
+                      return GlobalLoadingSection();
+                    }
 
-            // ۲. محتوای قابل اسکرول صفحه
-            Expanded(
-              child: SingleChildScrollView(
-                physics: const BouncingScrollPhysics(),
-                padding: EdgeInsets.only(bottom: 96.h),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // کادر جستجو و دکمه فیلتر پیشرفته
-                    // _buildSearchAndFilterBar(context),
+                    if (state is HomeDataFailedState) {
+                      return GlobalErrorSection(
+                        message: state.message,
+                        onRetry: () {
+                          _homeBloc.add(GetHomeDataEvent(pageSize: 10));
+                        },
+                      );
+                    }
 
-                    // بخش دسته‌بندی تخصص‌ها (Grid 4 ستونه)
-                    _buildSpecialtiesSection(context),
+                    if (state is HomeDataSuccessState) {
+                      final categories = state.categories;
+                      final providers = state.providersResponse.results;
+                      final totalProvidersCount = state.providersResponse.count;
 
-                    // بنر گرادینت مشاوره فوری ۲۴ ساعته
-                    _buildUrgentConsultationBanner(context),
+                      return RefreshIndicator(
+                        onRefresh: () async {
+                          _homeBloc.add(GetHomeDataEvent(pageSize: 10));
+                        },
+                        child: SingleChildScrollView(
+                          physics: const AlwaysScrollableScrollPhysics(
+                            parent: BouncingScrollPhysics(),
+                          ),
+                          padding: EdgeInsets.only(bottom: 96.h),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              _buildSpecialtiesSection(context, categories),
+                              _buildUrgentConsultationBanner(context),
+                              _buildDoctorsListSection(
+                                context,
+                                providers: providers,
+                                totalCount: totalProvidersCount,
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }
 
-                    // بخش لیست پزشکان برتر و متخصصان در دسترس
-                    _buildDoctorsListSection(context),
-                  ],
+                    return const SizedBox.shrink();
+                  },
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -228,14 +135,16 @@ class _HomeScreenState extends State<HomeScreen>
     final String userName =
         (currentUserModel.fullName != null &&
             currentUserModel.fullName!.trim().isNotEmpty)
-        ? currentUserModel.fullName!
-        : 'سارا احمدی';
+        ? currentUserModel.fullName!.trim()
+        : ((currentUserModel.firstName != null &&
+                  currentUserModel.firstName!.trim().isNotEmpty)
+              ? '${currentUserModel.firstName ?? ''} ${currentUserModel.lastName ?? ''}'
+                    .trim()
+              : 'کاربر گرامی');
 
-    final String userAvatar =
-        (currentUserModel.avatar != null &&
-            currentUserModel.avatar!.trim().isNotEmpty)
-        ? '${AppConstants.appImgBaseUrl}${currentUserModel.avatar}'
-        : 'https://lh3.googleusercontent.com/aida-public/AB6AXuBqn4mMZwtJ5RfBEDeH2LnDGcu8WVOk4PrSXw_WpIFsM89K7TBofJ3VowDUNwuY6dEXEOiBHtLX6iFveZKrjVhd7IZolcYrjKUtJN7zljMTyVcoHm3uxCtQAsfTwdrToQfq4f7-CW9BSojaB7MSCeTPZ0cjGQ-5228zLDWQZh6Gg3AuSkx1Z3eWOaUiu9eTxUhLGkjkIE2ETL-yVW8kZq-0Iw1-CRDpi3MSOCM0mRrAJiWkB5mCvkAU';
+    final String userInitial = userName.isNotEmpty
+        ? userName.substring(0, 1)
+        : 'ک';
 
     return Container(
       decoration: BoxDecoration(
@@ -256,11 +165,9 @@ class _HomeScreenState extends State<HomeScreen>
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              // سمت راست: لوگو، نام برنامه و موقعیت مکانی/خوش‌آمدگویی
               Expanded(
                 child: Row(
                   children: [
-                    // لوگوی درمانیار
                     Container(
                       width: 34.r,
                       height: 34.r,
@@ -268,17 +175,11 @@ class _HomeScreenState extends State<HomeScreen>
                         color: AppColors.primary50,
                         borderRadius: BorderRadius.circular(10.r),
                       ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(10.r),
-                        child: AppCachedImage(
-                          url: 'https://lh3.googleusercontent.com/aida/AEtjO1VvpJbmkpL4u4WM8jPX6v0QkiD84urbGXKg8iXu__MREpes97mWl6jUfX8uBajxCkxYyRQK144yV7xN5yCf5OCeEZfdqHL6LnrN-UaSKtocBjQtUNTLEPav1tFrTAosNPYAzmUrIoEnZnHNxVPGLhRTFVYW6OAWXn7ZehsxrZ7WK9otWVJaVZx5b0Cb9WhXCoSeyUX5KfmAniUISvaghLx11LeHTYOhk3kydXAWrp2T41yQ8X8yGmhnVfw',
-                          fit: BoxFit.contain,
-                          error: Icon(
-                            Icons.local_hospital_rounded,
-                            color: AppColors.primary500,
-                            size: 22.r,
-                          ),
-                        ),
+                      alignment: Alignment.center,
+                      child: Icon(
+                        Icons.local_hospital_rounded,
+                        color: AppColors.primary500,
+                        size: 22.r,
                       ),
                     ),
                     SizedBox(width: 8.w),
@@ -332,7 +233,7 @@ class _HomeScreenState extends State<HomeScreen>
                               SizedBox(width: 3.w),
                               Expanded(
                                 child: Text(
-                                  'تهران • روزبخیر، $userName',
+                                  'روزبخیر، $userName',
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: textTheme.bodySmall?.copyWith(
@@ -348,12 +249,9 @@ class _HomeScreenState extends State<HomeScreen>
                   ],
                 ),
               ),
-
-              // سمت چپ: دکمه اعلان‌ها و آواتار پروفایل کاربر
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // دکمه اعلان‌ها
                   InkWell(
                     borderRadius: BorderRadius.circular(50.r),
                     onTap: () {
@@ -362,79 +260,37 @@ class _HomeScreenState extends State<HomeScreen>
                     child: SizedBox(
                       width: 42.r,
                       height: 42.r,
-                      child: Stack(
-                        alignment: Alignment.center,
-                        children: [
-                          Icon(
-                            Icons.notifications_none_rounded,
-                            size: 24.r,
-                            color: AppColors.onSurfaceVariant,
-                          ),
-                          Positioned(
-                            top: 10.r,
-                            left: 10.r,
-                            child: Container(
-                              width: 8.r,
-                              height: 8.r,
-                              decoration: BoxDecoration(
-                                color: AppColors.tertiary,
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                  color: AppColors.surfaceContainerLowest,
-                                  width: 1.5,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
+                      child: Icon(
+                        Icons.notifications_none_rounded,
+                        size: 24.r,
+                        color: AppColors.onSurfaceVariant,
                       ),
                     ),
                   ),
                   SizedBox(width: 4.w),
-
-                  // تصویر پروفایل کاربر همراه با نشانگر آنلاین
                   GestureDetector(
                     onTap: () {
                       goScreen(context: context, screen: const ProfileScreen());
                     },
-                    child: Stack(
-                      clipBehavior: Clip.none,
-                      children: [
-                        Container(
-                          width: 34.r,
-                          height: 34.r,
-                          padding: EdgeInsets.all(1.5.r),
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: AppColors.primary500.withOpacity(0.25),
-                              width: 2,
-                            ),
-                          ),
-                          child: ClipOval(
-                            child: AppCachedImage(
-                              url: userAvatar,
-                              fit: BoxFit.cover,
-                            ),
-                          ),
+                    child: Container(
+                      width: 34.r,
+                      height: 34.r,
+                      decoration: BoxDecoration(
+                        color: AppColors.primary50,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: AppColors.primary500.withOpacity(0.25),
+                          width: 2,
                         ),
-                        Positioned(
-                          bottom: -1.r,
-                          right: -1.r,
-                          child: Container(
-                            width: 10.r,
-                            height: 10.r,
-                            decoration: BoxDecoration(
-                              color: AppColors.primary500,
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: AppColors.surfaceContainerLowest,
-                                width: 2,
-                              ),
-                            ),
-                          ),
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(
+                        userInitial,
+                        style: textTheme.titleMedium?.copyWith(
+                          color: AppColors.primary500,
+                          fontWeight: FontWeight.w700,
                         ),
-                      ],
+                      ),
                     ),
                   ),
                 ],
@@ -447,140 +303,18 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   // ---------------------------------------------------------------------------
-  // ۲. نوار جستجو و دکمه فیلتر پیشرفته
+  // ۲. بخش دسته‌بندی تخصص‌ها (Grid 4 ستونه متصل به GET /api/v1/categories/)
   // ---------------------------------------------------------------------------
-  Widget _buildSearchAndFilterBar(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-
-    return Padding(
-      padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 4.h),
-      child: Row(
-        children: [
-          // فیلد جستجو (هماهنگ با Input Fields در design.md)
-          Expanded(
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              height: 48.h,
-              decoration: BoxDecoration(
-                color: _isSearchFocused
-                    ? AppColors.surfaceContainerLowest
-                    : AppColors.text50Light,
-                borderRadius: BorderRadius.circular(12.r),
-                border: Border.all(
-                  color: _isSearchFocused
-                      ? AppColors.primary300
-                      : AppColors.text200Light,
-                  width: _isSearchFocused ? 1.5 : 1.0,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.text700Light.withOpacity(
-                      _isSearchFocused ? 0.06 : 0.03,
-                    ),
-                    blurRadius: _isSearchFocused ? 10 : 6,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: TextField(
-                controller: _searchController,
-                focusNode: _searchFocusNode,
-                style: textTheme.bodyMedium?.copyWith(
-                  color: AppColors.onSurface,
-                ),
-                decoration: InputDecoration(
-                  filled: false,
-                  hintText: 'جستجوی پزشک، تخصص یا بیماری...',
-                  hintStyle: textTheme.bodyMedium?.copyWith(
-                    fontSize: 13.sp,
-                    color: AppColors.outline,
-                  ),
-                  prefixIcon: Icon(
-                    Icons.search_rounded,
-                    color: AppColors.primary500,
-                    size: 22.r,
-                  ),
-                  suffixIcon: _searchController.text.isNotEmpty
-                      ? IconButton(
-                          onPressed: () {
-                            _searchController.clear();
-                          },
-                          icon: Container(
-                            width: 22.r,
-                            height: 22.r,
-                            decoration: const BoxDecoration(
-                              color: AppColors.surfaceContainerLow,
-                              shape: BoxShape.circle,
-                            ),
-                            child: Icon(
-                              Icons.close_rounded,
-                              size: 15.r,
-                              color: AppColors.outline,
-                            ),
-                          ),
-                        )
-                      : null,
-                  border: InputBorder.none,
-                  enabledBorder: InputBorder.none,
-                  focusedBorder: InputBorder.none,
-                  contentPadding: EdgeInsets.symmetric(
-                    horizontal: 12.w,
-                    vertical: 12.h,
-                  ),
-                ),
-              ),
-            ),
-          ),
-          SizedBox(width: 8.w),
-
-          // دکمه فیلتر پیشرفته
-          Material(
-            color: AppColors.surfaceContainerLowest,
-            borderRadius: BorderRadius.circular(12.r),
-            child: InkWell(
-              borderRadius: BorderRadius.circular(12.r),
-              onTap: () {
-                // باز کردن باتم‌شیت فیلتر پیشرفته
-              },
-              child: Container(
-                width: 48.h,
-                height: 48.h,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(12.r),
-                  border: Border.all(color: AppColors.text200Light),
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppColors.text700Light.withOpacity(0.03),
-                      blurRadius: 6,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                alignment: Alignment.center,
-                child: Icon(
-                  Icons.tune_rounded,
-                  color: AppColors.primary500,
-                  size: 22.r,
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ---------------------------------------------------------------------------
-  // ۳. بخش دسته‌بندی تخصص‌ها (Grid 4x2)
-  // ---------------------------------------------------------------------------
-  Widget _buildSpecialtiesSection(BuildContext context) {
+  Widget _buildSpecialtiesSection(
+    BuildContext context,
+    List<CategoryModel> categories,
+  ) {
     final textTheme = Theme.of(context).textTheme;
 
     return Padding(
       padding: EdgeInsets.only(top: 16.h),
       child: Column(
         children: [
-          // عنوان بخش
           Padding(
             padding: EdgeInsets.symmetric(horizontal: 16.w),
             child: Row(
@@ -608,7 +342,16 @@ class _HomeScreenState extends State<HomeScreen>
                 ),
                 InkWell(
                   borderRadius: BorderRadius.circular(8.r),
-                  onTap: () {},
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const SpecialtyDoctorsScreen(
+                          specialtyId: "",
+                          specialtyTitle: 'همه پزشکان و متخصصان',
+                        ),
+                      ),
+                    );
+                  },
                   child: Padding(
                     padding: EdgeInsets.symmetric(
                       horizontal: 4.w,
@@ -636,100 +379,108 @@ class _HomeScreenState extends State<HomeScreen>
             ),
           ),
           SizedBox(height: 10.h),
-
-          // شبکه ۴ ستونه تخصص‌ها
-          Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16.w),
-            child: GridView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: _specialties.length,
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 4,
-                crossAxisSpacing: 10.w,
-                mainAxisSpacing: 10.h,
-                childAspectRatio: 0.88,
+          if (categories.isEmpty)
+            Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 12.h),
+              child: Text(
+                'دسته‌بندی تخصصی ثبت نشده است.',
+                style: textTheme.bodySmall?.copyWith(color: AppColors.outline),
               ),
-              itemBuilder: (context, index) {
-                final item = _specialties[index];
-                final Color accentColor = item.usePrimaryColor
-                    ? AppColors.primary500
-                    : AppColors.secondary;
+            )
+          else
+            Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16.w),
+              child: GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: categories.length,
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 4,
+                  crossAxisSpacing: 10.w,
+                  mainAxisSpacing: 10.h,
+                  childAspectRatio: 0.88,
+                ),
+                itemBuilder: (context, index) {
+                  final item = categories[index];
+                  final bool usePrimary = index.isEven;
+                  final Color accentColor = usePrimary
+                      ? AppColors.primary500
+                      : AppColors.secondary;
 
-                return Material(
-                  color: AppColors.surfaceContainerLowest,
-                  borderRadius: BorderRadius.circular(16.r),
-                  child: InkWell(
+                  return Material(
+                    color: AppColors.surfaceContainerLowest,
                     borderRadius: BorderRadius.circular(16.r),
-                    onTap: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => SpecialtyDoctorsScreen(
-                            specialtyId: item.id,
-                            specialtyTitle: item.title,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(16.r),
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => SpecialtyDoctorsScreen(
+                              specialtyId: item.id,
+                              specialtyTitle: item.name,
+                            ),
                           ),
+                        );
+                      },
+                      child: Container(
+                        padding: EdgeInsets.all(8.r),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(16.r),
+                          border: Border.all(
+                            color: AppColors.surfaceContainerLow,
+                            width: 1,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppColors.text700Light.withOpacity(0.03),
+                              blurRadius: 6,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
                         ),
-                      );
-                    },
-                    child: Container(
-                      padding: EdgeInsets.all(8.r),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(16.r),
-                        border: Border.all(
-                          color: AppColors.surfaceContainerLow,
-                          width: 1,
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Container(
+                              width: 46.r,
+                              height: 46.r,
+                              decoration: BoxDecoration(
+                                color: accentColor.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(12.r),
+                              ),
+                              alignment: Alignment.center,
+                              child: Icon(
+                                item.resolvedIcon,
+                                size: 26.r,
+                                color: accentColor,
+                              ),
+                            ),
+                            SizedBox(height: 8.h),
+                            Text(
+                              item.name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              textAlign: TextAlign.center,
+                              style: textTheme.labelMedium?.copyWith(
+                                color: AppColors.onSurface,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
                         ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppColors.text700Light.withOpacity(0.03),
-                            blurRadius: 6,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Container(
-                            width: 46.r,
-                            height: 46.r,
-                            decoration: BoxDecoration(
-                              color: accentColor.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(12.r),
-                            ),
-                            alignment: Alignment.center,
-                            child: Icon(
-                              item.icon,
-                              size: 26.r,
-                              color: accentColor,
-                            ),
-                          ),
-                          SizedBox(height: 8.h),
-                          Text(
-                            item.title,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            textAlign: TextAlign.center,
-                            style: textTheme.labelMedium?.copyWith(
-                              color: AppColors.onSurface,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
                       ),
                     ),
-                  ),
-                );
-              },
+                  );
+                },
+              ),
             ),
-          ),
         ],
       ),
     );
   }
 
   // ---------------------------------------------------------------------------
-  // ۴. بنر گرادینت مشاوره فوری پزشکی متنی و تلفنی
+  // ۳. بنر گرادینت مشاوره فوری پزشکی متنی و تلفنی
   // ---------------------------------------------------------------------------
   Widget _buildUrgentConsultationBanner(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
@@ -759,7 +510,6 @@ class _HomeScreenState extends State<HomeScreen>
         ),
         child: Stack(
           children: [
-            // دایره دکوراتیو پایین-چپ
             Positioned(
               left: -24.r,
               bottom: -24.r,
@@ -774,8 +524,6 @@ class _HomeScreenState extends State<HomeScreen>
                 ),
               ),
             ),
-
-            // محتوای اصلی بنر
             Padding(
               padding: EdgeInsets.all(16.r),
               child: Row(
@@ -784,7 +532,6 @@ class _HomeScreenState extends State<HomeScreen>
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // بج بالای بنر همراه با دایره چشمک‌زن
                         Container(
                           padding: EdgeInsets.symmetric(
                             horizontal: 8.w,
@@ -823,7 +570,7 @@ class _HomeScreenState extends State<HomeScreen>
                         ),
                         SizedBox(height: 6.h),
                         Text(
-                          'مشاوره فوری پزشکی متنی و تلفنی',
+                          'مشاوره فوری پزشکی متنی و صوتی',
                           style: textTheme.headlineMedium?.copyWith(
                             fontSize: 16.sp,
                             fontWeight: FontWeight.w700,
@@ -867,16 +614,19 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   // ---------------------------------------------------------------------------
-  // ۵. لیست پزشکان برتر و متخصصان در دسترس
+  // ۴. لیست پزشکان برتر و متخصصان در دسترس (متصل به GET /api/v1/providers/)
   // ---------------------------------------------------------------------------
-  Widget _buildDoctorsListSection(BuildContext context) {
+  Widget _buildDoctorsListSection(
+    BuildContext context, {
+    required List<ProviderProfileModel> providers,
+    required int totalCount,
+  }) {
     final textTheme = Theme.of(context).textTheme;
 
     return Padding(
       padding: EdgeInsets.fromLTRB(16.w, 24.h, 16.w, 16.h),
       child: Column(
         children: [
-          // هدر لیست پزشکان
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -901,31 +651,50 @@ class _HomeScreenState extends State<HomeScreen>
                 ],
               ),
               Text(
-                '۴۲ متخصص فعال',
+                '${_toPersianDigits(totalCount.toString())} متخصص فعال',
                 style: textTheme.titleSmall?.copyWith(color: AppColors.outline),
               ),
             ],
           ),
           SizedBox(height: 12.h),
-
-          // کارت‌های پزشکان
-          ListView.separated(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: _doctors.length,
-            separatorBuilder: (_, __) => SizedBox(height: 14.h),
-            itemBuilder: (context, index) {
-              final doc = _doctors[index];
-              return _buildDoctorCard(context, doc);
-            },
-          ),
+          if (providers.isEmpty)
+            Container(
+              padding: EdgeInsets.symmetric(vertical: 36.h, horizontal: 16.w),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceContainerLowest,
+                borderRadius: BorderRadius.circular(16.r),
+                border: Border.all(color: AppColors.text200Light),
+              ),
+              alignment: Alignment.center,
+              child: Text(
+                'در حال حاضر پزشک فعالی یافت نشد.',
+                style: textTheme.bodyMedium?.copyWith(
+                  color: AppColors.onSurfaceVariant,
+                ),
+              ),
+            )
+          else
+            ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: providers.length,
+              separatorBuilder: (_, __) => SizedBox(height: 14.h),
+              itemBuilder: (context, index) {
+                final provider = providers[index];
+                return _buildDoctorCard(context, provider);
+              },
+            ),
         ],
       ),
     );
   }
 
-  Widget _buildDoctorCard(BuildContext context, _DoctorItemModel doc) {
+  Widget _buildDoctorCard(BuildContext context, ProviderProfileModel doc) {
     final textTheme = Theme.of(context).textTheme;
+    final bool isBookmarked = _bookmarkedIds.contains(doc.id);
+    final String initial = doc.user.fullName.trim().isNotEmpty
+        ? doc.user.fullName.trim().substring(0, 1)
+        : 'پ';
 
     return Container(
       padding: EdgeInsets.all(16.r),
@@ -944,46 +713,28 @@ class _HomeScreenState extends State<HomeScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ردیف بالا: عکس پزشک، نام، تخصص، امتیاز، کد نظام پزشکی و دکمه نشان کردن
+          // ردیف بالا: آواتار، نام، تخصص، کلینیک و دکمه نشان کردن (بدون امتیاز، کد نظام پزشکی و نقطه آنلاین)
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // تصویر پزشک + نشانگر وضعیت آنلاین/آفلاین
-              Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(16.r),
-                    child: AppCachedImage(
-                      url: doc.avatarUrl,
-                      width: 64.r,
-                      height: 64.r,
-                      fit: BoxFit.cover,
-                    ),
+              Container(
+                width: 64.r,
+                height: 64.r,
+                decoration: BoxDecoration(
+                  color: AppColors.primary50,
+                  borderRadius: BorderRadius.circular(16.r),
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  initial,
+                  style: textTheme.headlineMedium?.copyWith(
+                    fontSize: 22.sp,
+                    color: AppColors.primary500,
+                    fontWeight: FontWeight.w700,
                   ),
-                  Positioned(
-                    bottom: -3.r,
-                    right: -3.r,
-                    child: Container(
-                      width: 14.r,
-                      height: 14.r,
-                      decoration: BoxDecoration(
-                        color: doc.isOnline
-                            ? AppColors.primary500
-                            : AppColors.outline,
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: AppColors.surfaceContainerLowest,
-                          width: 2,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
+                ),
               ),
               SizedBox(width: 12.w),
-
-              // اطلاعات پزشک
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -997,7 +748,7 @@ class _HomeScreenState extends State<HomeScreen>
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                doc.name,
+                                doc.displayName,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: textTheme.headlineMedium?.copyWith(
@@ -1005,10 +756,10 @@ class _HomeScreenState extends State<HomeScreen>
                                   fontWeight: FontWeight.w700,
                                 ),
                               ),
-                              SizedBox(height: 2.h),
+                              SizedBox(height: 3.h),
                               Text(
-                                doc.specialty,
-                                maxLines: 1,
+                                doc.specialtiesTitle,
+                                maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
                                 style: textTheme.bodySmall?.copyWith(
                                   color: AppColors.onSurfaceVariant,
@@ -1021,17 +772,21 @@ class _HomeScreenState extends State<HomeScreen>
                           borderRadius: BorderRadius.circular(8.r),
                           onTap: () {
                             setState(() {
-                              doc.isBookmarked = !doc.isBookmarked;
+                              if (isBookmarked) {
+                                _bookmarkedIds.remove(doc.id);
+                              } else {
+                                _bookmarkedIds.add(doc.id);
+                              }
                             });
                           },
                           child: Padding(
                             padding: EdgeInsets.all(4.r),
                             child: Icon(
-                              doc.isBookmarked
+                              isBookmarked
                                   ? Icons.bookmark_rounded
                                   : Icons.bookmark_border_rounded,
                               size: 20.r,
-                              color: doc.isBookmarked
+                              color: isBookmarked
                                   ? AppColors.tertiary
                                   : AppColors.outline,
                             ),
@@ -1039,141 +794,37 @@ class _HomeScreenState extends State<HomeScreen>
                         ),
                       ],
                     ),
-                    SizedBox(height: 8.h),
-
-                    // امتیاز و کد نظام پزشکی
-                    Wrap(
-                      spacing: 8.w,
-                      runSpacing: 4.h,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        Container(
-                          padding: EdgeInsets.symmetric(
-                            horizontal: 8.w,
-                            vertical: 2.h,
+                    if (doc.organization.name.isNotEmpty) ...[
+                      SizedBox(height: 6.h),
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.apartment_rounded,
+                            size: 14.r,
+                            color: AppColors.primary500,
                           ),
-                          decoration: BoxDecoration(
-                            color: AppColors.surfaceContainerLow,
-                            borderRadius: BorderRadius.circular(50.r),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                Icons.star_rounded,
-                                size: 15.r,
-                                color: AppColors.tertiaryContainer,
-                              ),
-                              SizedBox(width: 3.w),
-                              Text(
-                                doc.rating,
-                                style: textTheme.titleSmall?.copyWith(
-                                  color: AppColors.onSurface,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                              SizedBox(width: 3.w),
-                              Text(
-                                '(${doc.reviewsCount} نظر)',
-                                style: textTheme.titleSmall?.copyWith(
-                                  color: AppColors.outline,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.verified_rounded,
-                              size: 14.r,
-                              color: AppColors.primary500,
-                            ),
-                            SizedBox(width: 4.w),
-                            Text(
-                              'کد نظام پزشکی: ${doc.medicalCode}',
+                          SizedBox(width: 4.w),
+                          Expanded(
+                            child: Text(
+                              doc.clinicDisplayTitle,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                               style: textTheme.titleSmall?.copyWith(
                                 color: AppColors.outline,
                               ),
                             ),
-                          ],
-                        ),
-                      ],
-                    ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ],
                 ),
               ),
             ],
           ),
-          SizedBox(height: 10.h),
+          SizedBox(height: 12.h),
 
-          // ردیف وسط: تگ‌های نوع ویزیت (حضوری / مشاوره آنلاین)
-          Wrap(
-            spacing: 6.w,
-            runSpacing: 6.h,
-            children: [
-              if (doc.hasInPerson)
-                Container(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: 10.w,
-                    vertical: 5.h,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppColors.inPersonVisitBg,
-                    borderRadius: BorderRadius.circular(8.r),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.apartment_rounded,
-                        size: 15.r,
-                        color: AppColors.inPersonVisitFg,
-                      ),
-                      SizedBox(width: 4.w),
-                      Text(
-                        'ویزیت حضوری مطب',
-                        style: textTheme.titleSmall?.copyWith(
-                          color: AppColors.inPersonVisitFg,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              if (doc.onlineTagText != null)
-                Container(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: 10.w,
-                    vertical: 5.h,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppColors.surfaceContainer,
-                    borderRadius: BorderRadius.circular(8.r),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        doc.onlineTagIcon ?? Icons.chat_bubble_outline_rounded,
-                        size: 15.r,
-                        color: AppColors.secondary,
-                      ),
-                      SizedBox(width: 4.w),
-                      Text(
-                        doc.onlineTagText!,
-                        style: textTheme.titleSmall?.copyWith(
-                          color: AppColors.secondary,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-            ],
-          ),
-          SizedBox(height: 14.h),
-
-          // ردیف پایین: اولین نوبت خالی و دکمه دریافت نوبت / مشاهده تقویم
+          // ردیف پایین: مدت زمان پیش‌فرض ویزیت و دکمه دریافت نوبت
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -1181,36 +832,18 @@ class _HomeScreenState extends State<HomeScreen>
                 child: Row(
                   children: [
                     Icon(
-                      doc.isInstantOnline
-                          ? Icons.check_circle_outline_rounded
-                          : Icons.calendar_month_rounded,
+                      Icons.calendar_month_rounded,
                       size: 16.r,
-                      color: doc.isInstantOnline
-                          ? AppColors.secondary
-                          : AppColors.primary500,
+                      color: AppColors.primary500,
                     ),
                     SizedBox(width: 6.w),
                     Expanded(
-                      child: RichText(
+                      child: Text(
+                        'مدت زمان پایه ویزیت: ${_toPersianDigits(doc.defaultSlotDurationMinutes.toString())} دقیقه',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        text: TextSpan(
-                          style: textTheme.bodySmall?.copyWith(
-                            fontFamily: 'IRANYekan',
-                            color: AppColors.onSurfaceVariant,
-                          ),
-                          children: [
-                            TextSpan(text: doc.availabilityPrefix),
-                            TextSpan(
-                              text: doc.availabilityValue,
-                              style: TextStyle(
-                                fontWeight: FontWeight.w700,
-                                color: doc.isInstantOnline
-                                    ? AppColors.secondary
-                                    : AppColors.onSurface,
-                              ),
-                            ),
-                          ],
+                        style: textTheme.bodySmall?.copyWith(
+                          color: AppColors.onSurfaceVariant,
                         ),
                       ),
                     ),
@@ -1218,12 +851,8 @@ class _HomeScreenState extends State<HomeScreen>
                 ),
               ),
               SizedBox(width: 8.w),
-
-              // دکمه عملیات (دریافت نوبت / مشاهده تقویم)
               Material(
-                color: doc.isPrimaryCta
-                    ? AppColors.primary500
-                    : AppColors.surfaceContainerLow,
+                color: AppColors.primary500,
                 borderRadius: BorderRadius.circular(12.r),
                 child: InkWell(
                   borderRadius: BorderRadius.circular(12.r),
@@ -1232,10 +861,8 @@ class _HomeScreenState extends State<HomeScreen>
                       context: context,
                       screen: DoctorProfileBookingScreen(
                         providerId: doc.id,
-                        initialDoctorName: doc.name,
-                        initialSpecialty: doc.specialty,
-                        initialAvatarUrl: doc.avatarUrl,
-                        initialMedicalCode: doc.medicalCode,
+                        initialDoctorName: doc.displayName,
+                        initialSpecialty: doc.specialtiesTitle,
                       ),
                     );
                   },
@@ -1247,20 +874,16 @@ class _HomeScreenState extends State<HomeScreen>
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
-                          doc.ctaText,
+                          'دریافت نوبت',
                           style: textTheme.labelMedium?.copyWith(
-                            color: doc.isPrimaryCta
-                                ? AppColors.text700Dark
-                                : AppColors.primary500,
+                            color: AppColors.text700Dark,
                           ),
                         ),
                         SizedBox(width: 4.w),
                         Icon(
                           Icons.chevron_left_rounded,
                           size: 18.r,
-                          color: doc.isPrimaryCta
-                              ? AppColors.text700Dark
-                              : AppColors.primary500,
+                          color: AppColors.text700Dark,
                         ),
                       ],
                     ),
@@ -1273,61 +896,4 @@ class _HomeScreenState extends State<HomeScreen>
       ),
     );
   }
-}
-
-// -----------------------------------------------------------------------------
-// مدل‌های داده داخلی صفحه
-// -----------------------------------------------------------------------------
-class _SpecialtyItem {
-  final String id;
-  final String title;
-  final IconData icon;
-  final bool usePrimaryColor;
-
-  const _SpecialtyItem({
-    required this.id,
-    required this.title,
-    required this.icon,
-    required this.usePrimaryColor,
-  });
-}
-
-class _DoctorItemModel {
-  final String id;
-  final String name;
-  final String specialty;
-  final String avatarUrl;
-  final String rating;
-  final String reviewsCount;
-  final String medicalCode;
-  final bool isOnline;
-  final bool hasInPerson;
-  final String? onlineTagText;
-  final IconData? onlineTagIcon;
-  final String availabilityPrefix;
-  final String availabilityValue;
-  final bool isInstantOnline;
-  final String ctaText;
-  final bool isPrimaryCta;
-  bool isBookmarked;
-
-  _DoctorItemModel({
-    required this.id,
-    required this.name,
-    required this.specialty,
-    required this.avatarUrl,
-    required this.rating,
-    required this.reviewsCount,
-    required this.medicalCode,
-    required this.isOnline,
-    required this.hasInPerson,
-    this.onlineTagText,
-    this.onlineTagIcon,
-    required this.availabilityPrefix,
-    required this.availabilityValue,
-    required this.isInstantOnline,
-    required this.ctaText,
-    required this.isPrimaryCta,
-    this.isBookmarked = false,
-  });
 }

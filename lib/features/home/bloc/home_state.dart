@@ -5,28 +5,34 @@ sealed class HomeState {}
 
 final class HomeInitial extends HomeState {}
 
-class GetAdsLoadingState extends HomeState {}
+class HomeDataLoadingState extends HomeState {}
 
-class GetAdsSuccessState extends HomeState {
-  // final Map<String, ChatRoomDoc> chats;
+class HomeDataSuccessState extends HomeState {
+  final List<CategoryModel> categories;
+  final PaginatedProvidersResponse providersResponse;
 
-  // GetAdsSuccessState({this.chats = const {}});
+  HomeDataSuccessState({
+    required this.categories,
+    required this.providersResponse,
+  });
 }
 
-class GetAdsFailedState extends HomeState {
+class HomeDataFailedState extends HomeState {
   final String message;
 
-  GetAdsFailedState({required this.message});
+  HomeDataFailedState({required this.message});
 }
 
-class GetPartnersLoadingState extends HomeState {}
+class SpecialtyDoctorsLoadingState extends HomeState {}
 
-class GetPartnersSuccessState extends HomeState {
-  GetPartnersSuccessState();
+class SpecialtyDoctorsSuccessState extends HomeState {
+  final PaginatedProvidersResponse providersResponse;
+
+  SpecialtyDoctorsSuccessState({required this.providersResponse});
 }
 
-class GetPartnersFailedState extends HomeState {
+class SpecialtyDoctorsFailedState extends HomeState {
   final String message;
 
-  GetPartnersFailedState({required this.message});
+  SpecialtyDoctorsFailedState({required this.message});
 }

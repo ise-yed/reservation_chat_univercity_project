@@ -12,7 +12,7 @@ class AppConstants {
   // شبیه‌ساز اندروید: 10.0.2.2
   // گوشی واقعی (متصل به وای‌فای کامپیوتر): 192.168.1.104
   // 192.168.43.153
-  static const appBaseUrl = 'http://192.168.1.101:8000/api/v1/';
+  static const appBaseUrl = 'http://192.168.43.153:8000/api/v1/';
   static const appImgBaseUrl =
       'https://serv.reservation_chat_univercity_project.app/uploads/';
   static const myketRsaKey =
