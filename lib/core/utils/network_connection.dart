@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
+import '../constants/app_constants.dart';
 
 class NetworkManager {
   static final Connectivity _connectivity = Connectivity();
@@ -16,44 +17,62 @@ class NetworkManager {
   static Future<bool> hasInternetConnection({
     Duration timeout = const Duration(seconds: 2),
   }) async {
-    // final status = await _connectivity.checkConnectivity();
-    // if (status == ConnectivityResult.none) return false;
+    try {
+      final statusList = await _connectivity.checkConnectivity();
+      if (statusList.isEmpty ||
+          (statusList.length == 1 &&
+              statusList.contains(ConnectivityResult.none))) {
+        return false;
+      }
 
-    // if (kIsWeb) return true;
+      if (kIsWeb) return true;
 
-    // Future<bool> probe(String host) async {
-    //   try {
-    //     final s = await Socket.connect(host, 53, timeout: timeout);
-    //     s.destroy();
-    //     return true;
-    //   } catch (_) {
-    //     return false;
-    //   }
-    // }
+      // Probe backend host first (especially important for local IP / offline LAN setups)
+      try {
+        final uri = Uri.tryParse(AppConstants.appBaseUrl);
+        if (uri != null && uri.host.isNotEmpty) {
+          final port = uri.hasPort ? uri.port : (uri.scheme == 'https' ? 443 : 80);
+          final s = await Socket.connect(uri.host, port, timeout: timeout);
+          s.destroy();
+          return true;
+        }
+      } catch (_) {}
 
-    // if (await probe('1.1.1.1')) return true;
-    // if (await probe('8.8.8.8')) return true;
+      // Fallback: probe public DNS
+      Future<bool> probe(String host) async {
+        try {
+          final s = await Socket.connect(host, 53, timeout: timeout);
+          s.destroy();
+          return true;
+        } catch (_) {
+          return false;
+        }
+      }
 
-    // try {
-    //   final lookup = await InternetAddress.lookup(
-    //     'example.com',
-    //   ).timeout(timeout);
-    //   return lookup.isNotEmpty && lookup.first.rawAddress.isNotEmpty;
-    // } on Exception {
-    //   return false;
-    // }
-    return true;
+      if (await probe('1.1.1.1')) return true;
+      if (await probe('8.8.8.8')) return true;
+
+      try {
+        final lookup = await InternetAddress.lookup(
+          'google.com',
+        ).timeout(timeout);
+        return lookup.isNotEmpty && lookup.first.rawAddress.isNotEmpty;
+      } catch (_) {
+        return false;
+      }
+    } catch (_) {
+      return false;
+    }
   }
 
   static void _startMonitoring() {
     if (_connectivitySub != null) return;
 
     _connectivitySub = _connectivity.onConnectivityChanged.listen((list) async {
-      final result = list.isNotEmpty ? list.first : ConnectivityResult.none;
+      final isNone = list.isEmpty ||
+          (list.length == 1 && list.contains(ConnectivityResult.none));
 
-      final hasNet = result == ConnectivityResult.none
-          ? false
-          : await hasInternetConnection();
+      final hasNet = isNone ? false : await hasInternetConnection();
 
       if (hasNet != _lastStatus) {
         _lastStatus = hasNet;

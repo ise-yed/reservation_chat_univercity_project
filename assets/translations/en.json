@@ -166,6 +166,8 @@
   "articles": "Articles",
   "messages": "Messages",
   "start_chat":"Start Chat",
+  "no_internet_retry": "No internet connection. Tap to retry.",
+  "fetch_user_retry": "Failed to load user information. Tap to retry.",
 
   "incorrect_otp_code": "Invalid verification code.",
   "no_reminders_added": "No reminders added yet!",

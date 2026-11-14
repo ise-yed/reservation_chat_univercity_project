@@ -7,7 +7,7 @@ import 'package:reservation_chat_univercity_project/core/constants/app_setting.d
 import 'package:reservation_chat_univercity_project/features/home/home.dart';
 import 'package:reservation_chat_univercity_project/features/messaging/screens/messaging_home_screen.dart';
 import 'package:reservation_chat_univercity_project/features/profile/screens/profile_screen.dart';
-import 'package:reservation_chat_univercity_project/features/root/placeholder_screens.dart';
+import 'package:reservation_chat_univercity_project/features/provider_services/screens/my_services_screen.dart';
 import 'package:reservation_chat_univercity_project/features/appointments/screens/appointments_screen.dart';
 
 import 'dart:ui' as ui;

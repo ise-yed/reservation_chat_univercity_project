@@ -16,8 +16,9 @@ class GetCurrentUserSuccess extends ProfileState {
 
 class GetCurrentUserError extends ProfileState {
   final String message;
+  final AppErrorCode? errorCode;
 
-  GetCurrentUserError(this.message);
+  GetCurrentUserError(this.message, {this.errorCode});
 }
 
 /// -------------------- Edit Profile --------------------

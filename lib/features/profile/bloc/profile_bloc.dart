@@ -37,6 +37,8 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
       final user = await profileServices.getCurrentUser();
       currentUserModel = user;
       emit(GetCurrentUserSuccess(user));
+    } on AppException catch (e) {
+      emit(GetCurrentUserError(_errMsg(e), errorCode: e.code));
     } catch (e) {
       emit(GetCurrentUserError(_errMsg(e)));
     }

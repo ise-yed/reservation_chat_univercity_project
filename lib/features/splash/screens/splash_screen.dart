@@ -10,9 +10,10 @@ import 'package:reservation_chat_univercity_project/core/constants/app_constants
 import 'package:reservation_chat_univercity_project/core/constants/app_setting.dart';
 import 'package:reservation_chat_univercity_project/core/themes/app_colors.dart';
 import 'package:reservation_chat_univercity_project/core/notifications/messaging_service.dart';
+import 'package:reservation_chat_univercity_project/core/utils/app_error.dart';
 import 'package:reservation_chat_univercity_project/core/utils/navigator.dart';
+import 'package:reservation_chat_univercity_project/core/utils/network_connection.dart';
 import 'package:reservation_chat_univercity_project/features/auth/screens/login.dart';
-import 'package:reservation_chat_univercity_project/features/auth/screens/register_screen.dart';
 import 'package:reservation_chat_univercity_project/features/auth/service/auth_service.dart';
 import 'package:reservation_chat_univercity_project/features/onboarding/screens/onboarding_screen.dart';
 import 'package:reservation_chat_univercity_project/features/profile/bloc/profile_bloc.dart';
@@ -28,14 +29,12 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> {
-  static const Duration _minSplash = Duration(seconds: 4);
+  static const Duration _minSplash = Duration(seconds: 3);
   bool _showError = false;
   String _retryTextKey = 'no_internet_retry';
   DateTime? _startedAt;
   bool _userReady = false;
-  bool _constReady = false;
   bool _navigated = false;
-
   bool _forceUpdateChecked = false;
 
   @override
@@ -45,56 +44,63 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   Future<void> _startFlow() async {
-    await Future.delayed(const Duration(seconds: 2));
-    if (!mounted) return;
+    _startedAt = DateTime.now();
+    _navigated = false;
+    _userReady = false;
+    if (mounted) {
+      setState(() => _showError = false);
+    }
 
     final token = prefs.getString(AppConstants.userToken);
     final refreshToken = prefs.getString(AppConstants.userRefreshToken);
-    final seenOnboarding = prefs.getBool(AppConstants.isOnboardingSeen) == true;
 
-    void goLogin() {
-      goScreen(
-        context: context,
-        screen: seenOnboarding ? const LoginScreen() : const OnboardingsScreen(),
-        closeAllScreen: true,
-      );
-    }
-
-    // ── Case 1: Access token exists ────────────────────────────────────────
-    // Go straight to Root. The per-request TokenRefreshInterceptor will
-    // transparently handle a 401 if/when the token actually expires.
-    if (token != null && token.isNotEmpty) {
-      goScreen(
-        context: context,
-        screen: const RootScreen(),
-        closeAllScreen: true,
-      );
+    // ── Case 1: No credentials at all → onboarding or login ──────────────
+    if ((token == null || token.isEmpty) &&
+        (refreshToken == null || refreshToken.isEmpty)) {
+      await _ensureMinSplash();
+      if (!mounted) return;
+      _goLogin();
       return;
     }
 
-    // ── Case 2: No access token but refresh token exists ──────────────────
-    // Try to obtain a new access token silently (e.g. access token was
-    // cleared from storage but the refresh token is still valid).
-    if (refreshToken != null && refreshToken.isNotEmpty) {
+    // ── Case 2: Credentials exist → check internet connectivity first ────
+    final hasNet = await NetworkManager.hasInternetConnection();
+    if (!hasNet) {
+      await _ensureMinSplash();
+      if (!mounted) return;
+      setState(() {
+        _retryTextKey = 'no_internet_retry';
+        _showError = true;
+      });
+      return;
+    }
+
+    // ── Case 3: Token is missing but refresh token exists ─────────────────
+    if ((token == null || token.isEmpty) &&
+        (refreshToken != null && refreshToken.isNotEmpty)) {
       final authService = AuthServices();
       final refreshed = await authService.refreshTokenOnStartup();
       if (!mounted) return;
 
-      if (refreshed) {
-        goScreen(
-          context: context,
-          screen: const RootScreen(),
-          closeAllScreen: true,
-        );
-      } else {
-        // Refresh token expired/invalid → must re-login.
-        goLogin();
+      if (!refreshed) {
+        final stillHasRefresh = prefs.getString(AppConstants.userRefreshToken);
+        if (stillHasRefresh == null || stillHasRefresh.isEmpty) {
+          await _ensureMinSplash();
+          if (!mounted) return;
+          _goLogin();
+        } else {
+          setState(() {
+            _retryTextKey = 'no_internet_retry';
+            _showError = true;
+          });
+        }
+        return;
       }
-      return;
     }
 
-    // ── Case 3: No credentials at all → login / onboarding ────────────────
-    goLogin();
+    // ── Case 4: Verify session & fetch user data via ProfileBloc ──────────
+    if (!mounted) return;
+    context.read<ProfileBloc>().add(GetCurrentUserEvent());
   }
 
   Future<void> _ensureMinSplash() async {
@@ -108,7 +114,7 @@ class _SplashScreenState extends State<SplashScreen> {
 
   Future<void> _maybeProceed() async {
     if (_navigated || !mounted) return;
-    if (!(_userReady && _constReady)) return;
+    if (!_userReady) return;
 
     if (!_forceUpdateChecked) {
       final updated = await _checkForForcedUpdate();
@@ -124,17 +130,7 @@ class _SplashScreenState extends State<SplashScreen> {
     _navigated = true;
 
     if (startedBefore) {
-      try {
-        final hasSub = true;
-        if (!mounted) return;
-
-        if (hasSub) {
-          _goRoot();
-        }
-      } catch (e) {
-        //debugPrint('Subscription check error: $e');
-        _goRoot();
-      }
+      _goRoot();
     } else {
       _goEditProfile();
     }
@@ -155,12 +151,20 @@ class _SplashScreenState extends State<SplashScreen> {
       }
       return false;
     } catch (e) {
-      //debugPrint('Version check error: $e');
       return false;
     }
   }
 
-
+  void _goLogin() {
+    if (_navigated || !mounted) return;
+    _navigated = true;
+    final seenOnboarding = prefs.getBool(AppConstants.isOnboardingSeen) == true;
+    goScreen(
+      context: context,
+      screen: seenOnboarding ? const LoginScreen() : const OnboardingsScreen(),
+      closeAllScreen: true,
+    );
+  }
 
   void _goRoot() {
     goScreen(
@@ -197,38 +201,16 @@ class _SplashScreenState extends State<SplashScreen> {
           listenWhen: (previous, current) =>
               current is GetCurrentUserLoading ||
               current is GetCurrentUserSuccess ||
-              current is GetCurrentUserError ||
-              current is AppConstSettingLoading ||
-              current is AppConstSettingSuccess ||
-              current is AppConstSettingError,
+              current is GetCurrentUserError,
           listener: (context, state) async {
-            if (state is GetCurrentUserLoading ||
-                state is AppConstSettingLoading) {
+            if (state is GetCurrentUserLoading) {
               if (!mounted) return;
               setState(() => _showError = false);
             }
 
-            if (state is AppConstSettingSuccess) {
-              appConstSetting = state.appConstSetting;
-              final forced = await _checkForForcedUpdate();
-              if (forced) {
-                return;
-              }
-
-              _constReady = true;
-              await _maybeProceed();
-              return;
-            }
-
             if (state is GetCurrentUserSuccess) {
               currentUserModel = state.user;
-              try {
-                // unawaited(
-                //   MessagingService.instance.syncTokenToServer(
-                //     promptOnWeb: kIsWeb,
-                //   ),
-                // );
-              } catch (_) {}
+              isLogin.value = true;
 
               final id = currentUserModel.id;
               if (id != null && id.isNotEmpty) {
@@ -243,20 +225,20 @@ class _SplashScreenState extends State<SplashScreen> {
             if (state is GetCurrentUserError) {
               await _ensureMinSplash();
               if (!mounted) return;
-              setState(() {
-                _retryTextKey = 'fetch_user_retry';
-                _showError = true;
-              });
-              return;
-            }
 
-            if (state is AppConstSettingError) {
-              await _ensureMinSplash();
-              if (!mounted) return;
-              setState(() {
-                _retryTextKey = 'fetch_user_retry';
-                _showError = true;
-              });
+              if (state.errorCode == AppErrorCode.unauthorized) {
+                _goLogin();
+              } else {
+                setState(() {
+                  _retryTextKey = (state.errorCode == AppErrorCode.noInternet ||
+                          state.errorCode == AppErrorCode.timeout ||
+                          state.errorCode == AppErrorCode.dnsError ||
+                          state.errorCode == AppErrorCode.gatewayError)
+                      ? 'no_internet_retry'
+                      : 'fetch_user_retry';
+                  _showError = true;
+                });
+              }
               return;
             }
           },

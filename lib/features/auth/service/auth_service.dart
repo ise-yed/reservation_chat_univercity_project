@@ -85,7 +85,7 @@ class AuthServices {
       }
       await prefs.remove(AppConstants.userToken);
       await prefs.remove(AppConstants.userRefreshToken);
-    } on DioException catch (e) {
+    } on DioException catch (_) {
       // Ignore logout errors
       await prefs.remove(AppConstants.userToken);
       await prefs.remove(AppConstants.userRefreshToken);
@@ -95,7 +95,7 @@ class AuthServices {
   /// Tries to refresh the access token silently at app startup.
   /// Returns [true] if a new access token was obtained and saved.
   /// Returns [false] if the refresh token is missing or expired.
-  /// On success, [prefs] is updated with the new access token.
+  /// On success, [prefs] is updated with the new access and refresh tokens.
   Future<bool> refreshTokenOnStartup() async {
     final refreshToken = prefs.getString(AppConstants.userRefreshToken);
     if (refreshToken == null || refreshToken.isEmpty) {
@@ -118,14 +118,21 @@ class AuthServices {
       );
       if (response.statusCode == 200) {
         final newAccess = response.data?['access']?.toString();
+        final newRefresh = response.data?['refresh']?.toString();
         if (newAccess != null && newAccess.isNotEmpty) {
           await prefs.setString(AppConstants.userToken, newAccess);
+          if (newRefresh != null && newRefresh.isNotEmpty) {
+            await prefs.setString(AppConstants.userRefreshToken, newRefresh);
+          }
           return true;
         }
       }
-      // Refresh token is invalid/expired — clear credentials.
-      await prefs.remove(AppConstants.userToken);
-      await prefs.remove(AppConstants.userRefreshToken);
+      // Only clear credentials if the server explicitly rejected the refresh token (400 / 401).
+      // If the server returns 5xx or temporary failure, do NOT wipe credentials.
+      if (response.statusCode == 400 || response.statusCode == 401) {
+        await prefs.remove(AppConstants.userToken);
+        await prefs.remove(AppConstants.userRefreshToken);
+      }
       return false;
     } catch (_) {
       // Network error — keep credentials; user may be offline.

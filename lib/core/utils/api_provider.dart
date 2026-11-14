@@ -1,17 +1,27 @@
 import 'package:dio/dio.dart';
 import 'package:easy_localization/easy_localization.dart';
+import 'package:flutter/material.dart';
+import '../../features/auth/models/user_model.dart';
+import '../../features/auth/screens/login.dart';
 import '../constants/app_constants.dart';
 import '../constants/app_setting.dart';
 import 'error_interceptor.dart';
 
 /// Called by [TokenRefreshInterceptor] when the session can no longer be
-/// recovered (refresh token expired / missing).  We clear local credentials
-/// and flip [isLogin] so that the app's root [ValueListenableBuilder]
-/// automatically redirects to the login / splash screen.
+/// recovered (refresh token expired / missing). We clear local credentials
+/// and redirect to the login screen.
 Future<void> _handleSessionExpired() async {
   await prefs.remove(AppConstants.userToken);
   await prefs.remove(AppConstants.userRefreshToken);
   isLogin.value = false;
+  currentUserModel = UserModel();
+  final navContext = navigatorKey.currentContext;
+  if (navContext != null) {
+    navigatorKey.currentState?.pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const LoginScreen()),
+      (route) => false,
+    );
+  }
 }
 
 final Dio apiProvider =
